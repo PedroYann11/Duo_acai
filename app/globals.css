@@ -1065,3 +1065,18 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .confirmacao-icone { animation: none; }
 }
+
+/* Stepper +/- no card do produto */
+.card-qty button {
+  background: var(--roxo);
+  color: var(--creme);
+}
+
+.card-qty button:hover {
+  background: var(--acai-2);
+}
+
+.card-qty strong {
+  min-width: 20px;
+  text-align: center;
+}

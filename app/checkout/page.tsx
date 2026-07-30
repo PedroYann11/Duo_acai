@@ -92,7 +92,7 @@ export default function Checkout() {
       .join("\n");
 
     const msg = [
-      `🟣 *NOVO PEDIDO — ${STORE.name.toUpperCase()}*`,
+      `\u{1F7E3} *NOVO PEDIDO — ${STORE.name.toUpperCase()}*`,
       ``,
       linhas,
       ``,
@@ -100,12 +100,12 @@ export default function Checkout() {
       `Entrega: ${formatBRL(STORE.deliveryFee)}`,
       `*Total: ${formatBRL(total)}*`,
       ``,
-      `👤 *Cliente:* ${nome.trim()}`,
-      telefone.trim() ? `📞 ${telefone.trim()}` : "",
-      `📍 *Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
-      referencia.trim() ? `🧭 Referência: ${referencia.trim()}` : "",
+      `\u{1F464} *Cliente:* ${nome.trim()}`,
+      telefone.trim() ? `\u{1F4DE} ${telefone.trim()}` : "",
+      `\u{1F4CD} *Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
+      referencia.trim() ? `\u{1F9ED} Referência: ${referencia.trim()}` : "",
       ``,
-      `💳 *Pagamento:* ${pagamento}${
+      `\u{1F4B3} *Pagamento:* ${pagamento}${
         pagamento === "Dinheiro" && troco.trim()
           ? ` (troco para ${troco.trim()})`
           : ""
@@ -130,18 +130,20 @@ export default function Checkout() {
             Pedido <strong>#{confirmado.numero}</strong>
           </p>
           <p className="confirmacao-texto">
-            Já chegou aqui na Duo e vai pro preparo. Total de{" "}
+            {"Já fomos buscar seu açaí no canto mais gelado do freezer "}
+            {"\u{1F9CA}"} Total de{" "}
             <strong>{formatBRL(confirmado.total)}</strong> — pagamento na
             entrega ({pagamento}
             {pagamento === "Dinheiro" && troco.trim()
               ? `, troco para ${troco.trim()}`
               : ""}
-            ). Avisamos no seu WhatsApp quando sair pra entrega! 🟣
+            ). {"Avisamos no seu WhatsApp quando sair pra entrega! "}
+            {"\u{1F6F5}"}
           </p>
           <div className="confirmacao-acoes">
             <a
               href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(
-                `Oi! Fiz o pedido #${confirmado.numero} pelo site 🟣`
+                `Oi! Fiz o pedido #${confirmado.numero} pelo site \u{1F7E3}`
               )}`}
               target="_blank"
               rel="noopener"
@@ -302,8 +304,8 @@ export default function Checkout() {
             {enviando ? "Enviando pedido…" : "Finalizar pedido"}
           </button>
           <p className="aviso">
-            Seu pedido vai direto pra cozinha da Duo 🟣 Prefere pedir pelo
-            WhatsApp?{" "}
+            {"Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte "}
+            {"\u{1F9CA}\u{1F7E3}"} Prefere pedir pelo WhatsApp?{" "}
             <a
               href={`https://wa.me/${STORE.whatsapp}`}
               target="_blank"

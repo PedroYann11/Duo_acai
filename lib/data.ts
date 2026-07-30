@@ -48,8 +48,8 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 
 export const PROXIMO_STATUS: Partial<Record<Status, Status>> = {
-  recebido: "em_preparo",
-  em_preparo: "saiu_entrega",
+  recebido: "saiu_entrega",
+  em_preparo: "saiu_entrega", // legado: pedidos antigos ainda saem daqui
   saiu_entrega: "entregue",
 };
 
@@ -187,7 +187,10 @@ export async function apagarPedido(id: string) {
 
 /** Assina novos pedidos em tempo real. Retorna função para cancelar. */
 export function aoChegarPedido(
-  callback: (evento: "INSERT" | "UPDATE" | "DELETE") => void
+  callback: (
+    evento: "INSERT" | "UPDATE" | "DELETE",
+    canalPedido: string | null
+  ) => void
 ): () => void {
   if (!supabaseOn) return () => {};
   const sb = getSupabase();
@@ -196,7 +199,11 @@ export function aoChegarPedido(
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "orders" },
-      (payload) => callback(payload.eventType as "INSERT" | "UPDATE" | "DELETE")
+      (payload) =>
+        callback(
+          payload.eventType as "INSERT" | "UPDATE" | "DELETE",
+          (payload.new as any)?.channel ?? null
+        )
     )
     .subscribe();
   return () => {

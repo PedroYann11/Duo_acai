@@ -108,14 +108,8 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
 
 /* ---------- Card de produto ---------- */
 export function ProductCard({ product }: { product: Product }) {
-  const { add } = useCart();
-  const [added, setAdded] = useState(false);
-
-  const handleAdd = () => {
-    add(product.id);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1200);
-  };
+  const { items, add, setQty } = useCart();
+  const qty = items.find((i) => i.productId === product.id)?.qty ?? 0;
 
   return (
     <article className={`card ${product.available ? "" : "esgotado"}`}>
@@ -125,17 +119,31 @@ export function ProductCard({ product }: { product: Product }) {
         <p>{product.description}</p>
         <div className="card-foot">
           <span className="price">{formatBRL(product.price)}</span>
-          <button
-            className="btn-add"
-            onClick={handleAdd}
-            disabled={!product.available}
-          >
-            {!product.available
-              ? "Esgotado"
-              : added
-                ? "Adicionado ✓"
-                : "Adicionar"}
-          </button>
+          {qty === 0 ? (
+            <button
+              className="btn-add"
+              onClick={() => add(product.id)}
+              disabled={!product.available}
+            >
+              {product.available ? "Adicionar" : "Esgotado"}
+            </button>
+          ) : (
+            <div className="qty card-qty">
+              <button
+                onClick={() => setQty(product.id, qty - 1)}
+                aria-label={`Diminuir ${product.name}`}
+              >
+                −
+              </button>
+              <strong>{qty}</strong>
+              <button
+                onClick={() => setQty(product.id, qty + 1)}
+                aria-label={`Aumentar ${product.name}`}
+              >
+                +
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </article>
