@@ -41,6 +41,15 @@ Tudo que muda com frequência está em **`lib/store.ts`**:
 Fotos dos produtos ficam em **`public/products/`** — pra trocar, basta
 substituir o arquivo mantendo o mesmo nome.
 
+## Pix no checkout (QR code + copia e cola)
+
+Abra `lib/store.ts` e preencha o campo **pixKey** com a chave Pix da Duo
+(CPF/CNPJ, telefone, email ou chave aleatória). Confira também pixName e
+pixCity. Com a chave preenchida, quem escolhe Pix no checkout vê, na tela
+de confirmação, o QR code com o valor exato do pedido e o botão de copiar
+o código. Se pixKey ficar vazio (""), o bloco Pix não aparece e o cliente
+paga na entrega.
+
 ## Conectar o Supabase (banco de dados na nuvem)
 
 Com o Supabase conectado, os pedidos do site entram sozinhos no dashboard

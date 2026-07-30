@@ -1080,3 +1080,55 @@ a {
   min-width: 20px;
   text-align: center;
 }
+
+/* ---------- Bloco Pix na confirmação ---------- */
+.bloco-pix {
+  margin: 26px auto 0;
+  max-width: 340px;
+  background: var(--branco);
+  color: var(--texto);
+  border-radius: var(--raio);
+  padding: 20px;
+  text-align: center;
+}
+
+.bloco-pix h2 {
+  font-family: var(--fonte-display);
+  font-size: 1.15rem;
+  color: var(--roxo);
+}
+
+.bloco-pix p {
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.pix-qr {
+  width: 220px;
+  height: 220px;
+  margin: 14px auto 6px;
+  border-radius: 12px;
+}
+
+.pix-copiar {
+  width: 100%;
+  margin-top: 10px;
+  background: var(--roxo);
+  color: var(--creme);
+  font-weight: 700;
+  font-size: 0.98rem;
+  padding: 13px;
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.pix-copiar:hover {
+  background: var(--acai-2);
+}
+
+.pix-obs {
+  font-size: 0.8rem !important;
+  margin-top: 10px !important;
+}

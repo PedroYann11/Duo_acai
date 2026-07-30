@@ -11,7 +11,14 @@ export const STORE = {
   deliveryFee: 5.0, // R$ — ajuste conforme a taxa real
   minOrder: 0, // pedido mínimo em R$ (0 = sem mínimo)
   openHours: "Todos os dias, 10h às 22h", // ajuste o horário real
-  adminPin: "duo2026", // TROQUE esta senha do painel /admin
+  adminPin: "duo2026", // TROQUE esta senha do painel /admin (modo local)
+
+  // ---- Pix da loja (para o QR code do checkout) ----
+  // Preencha a chave Pix da Duo (CPF/CNPJ, telefone, email ou aleatória).
+  // Se deixar vazio (""), o site não mostra o QR e o cliente paga na entrega.
+  pixKey: "",
+  pixName: "DUO ACAI", // nome do recebedor, sem acento, máx 25 letras
+  pixCity: "CRATO", // cidade do recebedor, máx 15 letras
 };
 
 export type Product = {

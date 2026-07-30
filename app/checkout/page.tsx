@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PRODUCTS, STORE, formatBRL } from "@/lib/store";
 import { useCart } from "@/lib/cart";
 import { criarPedidoSite } from "@/lib/data";
+import { gerarPixCopiaECola } from "@/lib/pix";
+import QRCode from "qrcode";
 
 type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
 
@@ -88,7 +90,7 @@ export default function Checkout() {
 
     // Plano B: banco indisponível -> pedido segue pelo WhatsApp
     const linhas = itensPedido
-      .map((i) => `▪ ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
+      .map((i) => `\u25AA ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
       .join("\n");
 
     const msg = [
@@ -114,17 +116,17 @@ export default function Checkout() {
       .filter((l) => l !== "")
       .join("\n");
 
-    const url = `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank");
-    clear();
+    // location.href não sofre bloqueio de popup no celular;
+    // o carrinho é mantido para o cliente poder tentar de novo se voltar.
     setEnviando(false);
+    window.location.href = `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(msg)}`;
   };
 
   if (confirmado) {
     return (
       <div className="checkout">
         <div className="confirmacao">
-          <div className="confirmacao-icone">✓</div>
+          <div className="confirmacao-icone">{"\u2713"}</div>
           <h1>Pedido recebido!</h1>
           <p className="confirmacao-numero">
             Pedido <strong>#{confirmado.numero}</strong>
@@ -140,6 +142,9 @@ export default function Checkout() {
             ). {"Avisamos no seu WhatsApp quando sair pra entrega! "}
             {"\u{1F6F5}"}
           </p>
+          {pagamento === "Pix" && STORE.pixKey && (
+            <BlocoPix total={confirmado.total} numero={confirmado.numero} />
+          )}
           <div className="confirmacao-acoes">
             <a
               href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(
@@ -318,6 +323,61 @@ export default function Checkout() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+
+/* ---------- Bloco Pix: QR code + copia e cola ---------- */
+function BlocoPix({ total, numero }: { total: number; numero: string }) {
+  const [qr, setQr] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const codigo = gerarPixCopiaECola({
+    chave: STORE.pixKey,
+    nome: STORE.pixName,
+    cidade: STORE.pixCity,
+    valor: total,
+    txid: `DUO${numero}`,
+  });
+
+  useEffect(() => {
+    QRCode.toDataURL(codigo, { width: 240, margin: 1 })
+      .then(setQr)
+      .catch(() => setQr(null));
+  }, [codigo]);
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(codigo);
+    } catch {
+      // fallback para navegadores antigos
+      const area = document.createElement("textarea");
+      area.value = codigo;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      document.body.removeChild(area);
+    }
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  return (
+    <div className="bloco-pix">
+      <h2>{"Pague agora com Pix \u26A1"}</h2>
+      <p>
+        Escaneie o QR code ou copie o código abaixo — o valor de{" "}
+        <strong>{formatBRL(total)}</strong> já vai preenchido.
+      </p>
+      {qr && <img src={qr} alt="QR code do Pix" className="pix-qr" />}
+      <button className="pix-copiar" onClick={copiar}>
+        {copiado ? "Código copiado! \u2713" : "Copiar código Pix"}
+      </button>
+      <p className="pix-obs">
+        Depois de pagar, envie o comprovante no nosso WhatsApp pelo botão
+        abaixo.
+      </p>
     </div>
   );
 }
