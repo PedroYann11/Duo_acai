@@ -19,6 +19,7 @@ create table if not exists orders (
   delivery_fee numeric(10,2) not null default 0,
   total numeric(10,2) not null,
   status text not null default 'recebido', -- recebido | em_preparo | saiu_entrega | entregue | cancelado
+  seller_name text,                       -- vendedor (vendas de balcão/manual)
   created_at timestamptz default now()
 );
 
@@ -31,6 +32,19 @@ create table if not exists order_items (
   unit_price numeric(10,2) not null,
   qty int not null check (qty > 0)
 );
+
+-- Vendedores (só nomes)
+create table if not exists sellers (
+  id uuid primary key default gen_random_uuid(),
+  name text unique not null,
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
+insert into sellers (name) values
+  ('Pedro Kailã'),
+  ('Marcelo Teixeira')
+on conflict (name) do nothing;
 
 create index if not exists idx_orders_created on orders (created_at desc);
 create index if not exists idx_items_order on order_items (order_id);
@@ -69,6 +83,13 @@ create policy "admin le itens" on order_items
 drop policy if exists "admin apaga itens" on order_items;
 create policy "admin apaga itens" on order_items
   for delete using (auth.role() = 'authenticated');
+
+alter table sellers enable row level security;
+
+drop policy if exists "admin gerencia vendedores" on sellers;
+create policy "admin gerencia vendedores" on sellers
+  for all using (auth.role() = 'authenticated')
+  with check (auth.role() = 'authenticated');
 
 -- ---------- Tempo real (pedido novo aparece na hora no painel) ----------
 do $$

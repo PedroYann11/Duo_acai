@@ -6,9 +6,12 @@ Site oficial da Duo Açaí com cardápio, carrinho e checkout via WhatsApp.
 
 - Cardápio com os 5 sabores, fotos e preços
 - Carrinho com persistência (não perde ao recarregar a página)
-- Checkout com endereço de entrega e forma de pagamento
-- Pedido formatado enviado direto pro WhatsApp da loja
-- Visual 100% Duo: paleta açaí + creme, mobile-first
+- Checkout com endereço de entrega, telefone/WhatsApp e forma de pagamento
+- Pedido salvo no banco + tela de confirmação com número do pedido
+  (se o banco estiver fora do ar, o pedido segue pelo WhatsApp como plano B)
+- Painel /admin: vendas manuais, dashboard, pedidos em tempo real com
+  som/notificação, vendedores, e aviso de "saiu pra entrega" pro cliente
+- Visual 100% Duo: paleta açaí + creme, garrafinha animada, mobile-first
 
 ## Como rodar localmente
 
@@ -74,12 +77,14 @@ Acesse **seudominio.com/admin** (ou duo-acai.vercel.app/admin).
   mais vendido ao menos vendido, e receita por forma de pagamento.
 - **Pedidos**: acompanhe os pedidos do site em tempo real e mude o status
   (Recebido → Em preparo → Saiu p/ entrega → Entregue)
+- **Som de pedido novo**: clique em "🔕 Som desligado" pra ativar o sino +
+  notificação do navegador (aceite a permissão). Precisa deixar o painel
+  aberto numa aba. Ative no aparelho que fica na loja.
+- **Avisar o cliente**: ao marcar "Saiu p/ entrega", abre o WhatsApp com a
+  mensagem pronta pro cliente ("seu pedido saiu pra entrega") — é só enviar
 - Use "Registrar venda" pra balcão, dinheiro vivo e pedidos que chegaram
   direto no WhatsApp — os do site entram sozinhos
 
-## Próximas partes
+## Próxima parte
 
-- **Parte 2 — Painel admin + Supabase**: produtos e pedidos no banco de dados,
-  painel em `/admin` com login, pedidos chegando em tempo real e mudança de
-  status. O schema do banco já está pronto em `supabase/schema.sql`.
-- **Parte 3 — Mercado Pago**: pagamento online com Pix e cartão direto no site.
+- **Mercado Pago**: pagamento online com Pix e cartão direto no site.

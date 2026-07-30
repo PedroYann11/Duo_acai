@@ -7,12 +7,17 @@ import { supabaseOn, getSupabase } from "@/lib/supabase";
 import {
   listarPedidos,
   registrarVendaBalcao,
+  listarVendedores,
+  adicionarVendedor,
+  removerVendedor,
+  type Vendedor,
   atualizarStatus,
   apagarPedido,
   aoChegarPedido,
   resumo,
   STATUS_LABEL,
   PROXIMO_STATUS,
+  linkWhatsApp,
   type Pedido,
   type Status,
 } from "@/lib/data";
@@ -120,17 +125,53 @@ export default function Admin() {
 /* ================= Painel ================= */
 
 function Painel() {
-  const [aba, setAba] = useState<"vender" | "dashboard" | "pedidos">("vender");
+  const [aba, setAba] = useState<
+    "vender" | "dashboard" | "pedidos" | "vendedores"
+  >("vender");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [toast, setToast] = useState("");
+  const [notifOn, setNotifOn] = useState(false);
 
   const recarregar = async () => setPedidos(await listarPedidos());
 
   useEffect(() => {
+    setNotifOn(localStorage.getItem("duo-notif") === "1");
+  }, []);
+
+  useEffect(() => {
     recarregar();
-    const cancelar = aoChegarPedido(recarregar);
+    const cancelar = aoChegarPedido((evento) => {
+      recarregar();
+      if (evento === "INSERT" && localStorage.getItem("duo-notif") === "1") {
+        tocarSino();
+        if (
+          typeof Notification !== "undefined" &&
+          Notification.permission === "granted"
+        ) {
+          new Notification("🟣 Novo pedido na Duo!", {
+            body: "Abra a aba Pedidos pra ver os detalhes.",
+          });
+        }
+      }
+    });
     return cancelar;
   }, []);
+
+  const alternarNotif = async () => {
+    if (notifOn) {
+      localStorage.setItem("duo-notif", "0");
+      setNotifOn(false);
+      return;
+    }
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      try {
+        await Notification.requestPermission();
+      } catch {}
+    }
+    localStorage.setItem("duo-notif", "1");
+    setNotifOn(true);
+    tocarSino(); // demonstração + desbloqueia o áudio no navegador
+  };
 
   const avisar = (msg: string) => {
     setToast(msg);
@@ -163,6 +204,19 @@ function Painel() {
         >
           Pedidos{pendentes > 0 ? ` (${pendentes})` : ""}
         </button>
+        <button
+          className={`admin-tab ${aba === "vendedores" ? "ativo" : ""}`}
+          onClick={() => setAba("vendedores")}
+        >
+          Vendedores
+        </button>
+        <button
+          className="admin-tab"
+          onClick={alternarNotif}
+          title="Som e notificação quando chegar pedido novo"
+        >
+          {notifOn ? "🔔 Som ligado" : "🔕 Som desligado"}
+        </button>
       </div>
 
       {aba === "vender" && (
@@ -178,6 +232,7 @@ function Painel() {
       {aba === "pedidos" && (
         <Pedidos pedidos={pedidos} onMudou={recarregar} />
       )}
+      {aba === "vendedores" && <Vendedores avisar={avisar} />}
 
       {toast && <div className="toast-ok">{toast}</div>}
       {!supabaseOn && (
@@ -192,6 +247,27 @@ function Painel() {
   );
 }
 
+/* Sino de pedido novo (Web Audio, sem arquivo de som) */
+function tocarSino() {
+  try {
+    const ctx = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
+    const notas = [880, 1174.66]; // lá 5 -> ré 6
+    notas.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + i * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.5);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.18);
+      osc.stop(ctx.currentTime + i * 0.18 + 0.55);
+    });
+  } catch {}
+}
+
 /* ================= Registrar venda (balcão/WhatsApp/dinheiro) ================= */
 
 function RegistrarVenda({
@@ -204,6 +280,15 @@ function RegistrarVenda({
   const [qtds, setQtds] = useState<Record<string, number>>({});
   const [pagamento, setPagamento] = useState("Pix");
   const [salvando, setSalvando] = useState(false);
+  const [vendedores, setVendedores] = useState<Vendedor[]>([]);
+  const [vendedor, setVendedor] = useState<string | null>(null);
+
+  useEffect(() => {
+    listarVendedores().then((v) => {
+      setVendedores(v);
+      if (v.length > 0) setVendedor(v[0].name);
+    });
+  }, []);
 
   const mudar = (id: string, delta: number) =>
     setQtds((prev) => {
@@ -231,7 +316,12 @@ function RegistrarVenda({
     if (itens.length === 0 || salvando) return;
     setSalvando(true);
     try {
-      await registrarVendaBalcao({ payment_method: pagamento, total, itens });
+      await registrarVendaBalcao({
+        payment_method: pagamento,
+        total,
+        seller_name: vendedor,
+        itens,
+      });
       setQtds({});
       onSalvo();
     } catch {
@@ -258,6 +348,26 @@ function RegistrarVenda({
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="bloco">
+        <h2>Quem vendeu?</h2>
+        <div className="pill-group">
+          {vendedores.map((v) => (
+            <button
+              key={v.id}
+              className={`pill ${vendedor === v.name ? "ativo" : ""}`}
+              onClick={() => setVendedor(v.name)}
+            >
+              {v.name}
+            </button>
+          ))}
+          {vendedores.length === 0 && (
+            <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+              Nenhum vendedor cadastrado — adicione na aba Vendedores.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="bloco">
@@ -392,6 +502,106 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
           <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>—</p>
         )}
       </div>
+
+      <div className="bloco">
+        <h2>Vendas por vendedor</h2>
+        {Object.entries(r.porVendedor)
+          .sort((a, b) => b[1] - a[1])
+          .map(([nome, valor]) => {
+            const maxV = Math.max(...Object.values(r.porVendedor), 1);
+            return (
+              <div className="barra-linha" key={nome}>
+                <span>{nome}</span>
+                <div className="barra-trilho">
+                  <div
+                    className="barra-fill"
+                    style={{ width: `${(valor / maxV) * 100}%` }}
+                  />
+                </div>
+                <span className="barra-qtd">{formatBRL(valor)}</span>
+              </div>
+            );
+          })}
+        {Object.keys(r.porVendedor).length === 0 && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Aparece aqui quando houver vendas registradas com vendedor.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ================= Vendedores ================= */
+
+function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
+  const [lista, setLista] = useState<Vendedor[]>([]);
+  const [nome, setNome] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  const carregar = () => listarVendedores().then(setLista);
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  const adicionar = async () => {
+    if (!nome.trim() || salvando) return;
+    setSalvando(true);
+    try {
+      await adicionarVendedor(nome);
+      setNome("");
+      carregar();
+      avisar("Vendedor adicionado ✓");
+    } catch (e: any) {
+      avisar(e.message || "Erro ao adicionar");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="bloco">
+        <h2>Novo vendedor</h2>
+        <div className="campo">
+          <label htmlFor="novo-vendedor">Nome</label>
+          <input
+            id="novo-vendedor"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && adicionar()}
+            placeholder="Nome do vendedor"
+          />
+        </div>
+        <button className="btn-principal" onClick={adicionar}>
+          {salvando ? "Salvando…" : "Adicionar"}
+        </button>
+      </div>
+
+      <div className="bloco">
+        <h2>Equipe</h2>
+        {lista.map((v) => (
+          <div className="hist-item" key={v.id}>
+            <span>{v.name}</span>
+            <button
+              className="btn-x"
+              onClick={async () => {
+                if (confirm(`Remover ${v.name}? As vendas antigas continuam no histórico.`)) {
+                  await removerVendedor(v.id);
+                  carregar();
+                }
+              }}
+            >
+              remover
+            </button>
+          </div>
+        ))}
+        {lista.length === 0 && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Ninguém cadastrado ainda.
+          </p>
+        )}
+      </div>
     </>
   );
 }
@@ -460,6 +670,7 @@ function CartaoPedido({
       <div style={{ flex: 1 }}>
         <div>
           <strong>{NOME_CANAL[pedido.channel] || pedido.channel}</strong>
+          {pedido.seller_name ? ` · vend. ${pedido.seller_name}` : ""}
           {pedido.customer_name ? ` · ${pedido.customer_name}` : ""} ·{" "}
           {formatBRL(Number(pedido.total))} · {pedido.payment_method}
         </div>
@@ -487,9 +698,23 @@ function CartaoPedido({
                 onClick={async () => {
                   await atualizarStatus(pedido.id, proximo);
                   onMudou();
+                  if (proximo === "saiu_entrega" && pedido.customer_phone) {
+                    const msg = `Oi${
+                      pedido.customer_name ? " " + pedido.customer_name.split(" ")[0] : ""
+                    }! Aqui é da Duo Açaí 🟣 Seu pedido #${pedido.id
+                      .slice(0, 6)
+                      .toUpperCase()} acabou de sair pra entrega. Já já chega aí! 🛵`;
+                    window.open(
+                      linkWhatsApp(pedido.customer_phone, msg),
+                      "_blank"
+                    );
+                  }
                 }}
               >
                 → {STATUS_LABEL[proximo]}
+                {proximo === "saiu_entrega" && pedido.customer_phone
+                  ? " + avisar cliente"
+                  : ""}
               </button>
             )}
             {pedido.status !== "cancelado" && (

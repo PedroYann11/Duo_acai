@@ -34,6 +34,7 @@ export type Pedido = {
   delivery_fee: number;
   total: number;
   status: Status;
+  seller_name: string | null;
   created_at: string;
   itens: ItemPedido[];
 };
@@ -69,29 +70,31 @@ export async function criarPedidoSite(dados: {
   delivery_fee: number;
   total: number;
   itens: ItemPedido[];
-}): Promise<boolean> {
-  if (!supabaseOn) return false;
+}): Promise<string | null> {
+  if (!supabaseOn) return null;
   try {
     const sb = getSupabase();
     const { itens, ...pedido } = dados;
     const { data, error } = await sb
       .from("orders")
-      .insert({ ...pedido, channel: "site", status: "recebido" })
+      .insert({ ...pedido, channel: "site", status: "recebido", seller_name: null })
       .select("id")
       .single();
-    if (error || !data) return false;
+    if (error || !data) return null;
     const { error: e2 } = await sb
       .from("order_items")
       .insert(itens.map((i) => ({ ...i, order_id: data.id })));
-    return !e2;
+    if (e2) return null;
+    return data.id as string;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export async function registrarVendaBalcao(dados: {
   payment_method: string;
   total: number;
+  seller_name: string | null;
   itens: ItemPedido[];
 }): Promise<void> {
   const pedido: Pedido = {
@@ -109,6 +112,7 @@ export async function registrarVendaBalcao(dados: {
     delivery_fee: 0,
     total: dados.total,
     status: "entregue",
+    seller_name: dados.seller_name,
     created_at: new Date().toISOString(),
     itens: dados.itens,
   };
@@ -182,7 +186,9 @@ export async function apagarPedido(id: string) {
 }
 
 /** Assina novos pedidos em tempo real. Retorna função para cancelar. */
-export function aoChegarPedido(callback: () => void): () => void {
+export function aoChegarPedido(
+  callback: (evento: "INSERT" | "UPDATE" | "DELETE") => void
+): () => void {
   if (!supabaseOn) return () => {};
   const sb = getSupabase();
   const canal = sb
@@ -190,12 +196,77 @@ export function aoChegarPedido(callback: () => void): () => void {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "orders" },
-      callback
+      (payload) => callback(payload.eventType as "INSERT" | "UPDATE" | "DELETE")
     )
     .subscribe();
   return () => {
     sb.removeChannel(canal);
   };
+}
+
+/** Monta link de WhatsApp para um telefone brasileiro */
+export function linkWhatsApp(telefone: string, mensagem: string): string {
+  let digitos = telefone.replace(/\D/g, "");
+  if (!digitos.startsWith("55")) digitos = "55" + digitos;
+  return `https://wa.me/${digitos}?text=${encodeURIComponent(mensagem)}`;
+}
+
+// ---------- vendedores ----------
+
+export type Vendedor = { id: string; name: string };
+
+const KEY_VENDEDORES = "duo-vendedores-v1";
+const VENDEDORES_PADRAO: Vendedor[] = [
+  { id: "v1", name: "Pedro Kailã" },
+  { id: "v2", name: "Marcelo Teixeira" },
+];
+
+function vendedoresLocais(): Vendedor[] {
+  try {
+    const raw = localStorage.getItem(KEY_VENDEDORES);
+    if (raw) return JSON.parse(raw) as Vendedor[];
+  } catch {}
+  localStorage.setItem(KEY_VENDEDORES, JSON.stringify(VENDEDORES_PADRAO));
+  return VENDEDORES_PADRAO;
+}
+
+export async function listarVendedores(): Promise<Vendedor[]> {
+  if (!supabaseOn) return vendedoresLocais();
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("sellers")
+    .select("id, name")
+    .eq("active", true)
+    .order("name");
+  if (error || !data) return [];
+  return data as Vendedor[];
+}
+
+export async function adicionarVendedor(nome: string): Promise<void> {
+  const limpo = nome.trim();
+  if (!limpo) throw new Error("Nome vazio");
+  if (supabaseOn) {
+    const sb = getSupabase();
+    const { error } = await sb.from("sellers").insert({ name: limpo });
+    if (error) throw new Error("Não foi possível salvar (nome repetido?)");
+  } else {
+    const todos = vendedoresLocais();
+    if (todos.some((v) => v.name.toLowerCase() === limpo.toLowerCase()))
+      throw new Error("Esse nome já existe");
+    todos.push({ id: crypto.randomUUID(), name: limpo });
+    localStorage.setItem(KEY_VENDEDORES, JSON.stringify(todos));
+  }
+}
+
+export async function removerVendedor(id: string): Promise<void> {
+  if (supabaseOn) {
+    const sb = getSupabase();
+    // desativa em vez de apagar, pra manter o histórico das vendas
+    await sb.from("sellers").update({ active: false }).eq("id", id);
+  } else {
+    const todos = vendedoresLocais().filter((v) => v.id !== id);
+    localStorage.setItem(KEY_VENDEDORES, JSON.stringify(todos));
+  }
 }
 
 // ---------- indicadores ----------
@@ -220,6 +291,7 @@ export function resumo(pedidos: Pedido[]) {
 
   const porPagamento: Record<string, number> = {};
   const porCanal: Record<string, number> = {};
+  const porVendedor: Record<string, number> = {};
   const porProduto: Record<
     string,
     { nome: string; qtd: number; receita: number }
@@ -231,6 +303,9 @@ export function resumo(pedidos: Pedido[]) {
     porPagamento[p.payment_method] =
       (porPagamento[p.payment_method] || 0) + Number(p.total);
     porCanal[p.channel] = (porCanal[p.channel] || 0) + Number(p.total);
+    if (p.seller_name)
+      porVendedor[p.seller_name] =
+        (porVendedor[p.seller_name] || 0) + Number(p.total);
     if (d >= hoje) {
       recHoje += Number(p.total);
       qtdHoje++;
@@ -265,6 +340,7 @@ export function resumo(pedidos: Pedido[]) {
     totalPedidos: validos.length,
     porPagamento,
     porCanal,
+    porVendedor,
     ranking,
   };
 }

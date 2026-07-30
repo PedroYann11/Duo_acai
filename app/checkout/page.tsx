@@ -19,11 +19,20 @@ export default function Checkout() {
   const [pagamento, setPagamento] = useState<Pagamento>("Pix");
   const [troco, setTroco] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [confirmado, setConfirmado] = useState<{
+    numero: string;
+    total: number;
+  } | null>(null);
 
   const valido =
-    items.length > 0 && nome.trim() && rua.trim() && numero.trim() && bairro.trim();
+    items.length > 0 &&
+    nome.trim() &&
+    telefone.trim().replace(/\D/g, "").length >= 10 &&
+    rua.trim() &&
+    numero.trim() &&
+    bairro.trim();
 
-  const enviarWhatsApp = async () => {
+  const finalizarPedido = async () => {
     if (!valido || enviando) return;
     setEnviando(true);
 
@@ -45,9 +54,10 @@ export default function Checkout() {
       qty: number;
     }[];
 
-    // salva no banco (dashboard) — se falhar, o pedido segue pelo WhatsApp
+    // salva no banco -> tela de confirmação; se falhar, segue pelo WhatsApp
+    let pedidoId: string | null = null;
     try {
-      await criarPedidoSite({
+      pedidoId = await criarPedidoSite({
         customer_name: nome.trim(),
         customer_phone: telefone.trim() || null,
         street: rua.trim(),
@@ -64,6 +74,19 @@ export default function Checkout() {
       });
     } catch {}
 
+    if (pedidoId) {
+      const totalPedido = total;
+      clear();
+      setConfirmado({
+        numero: pedidoId.slice(0, 6).toUpperCase(),
+        total: totalPedido,
+      });
+      setEnviando(false);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+
+    // Plano B: banco indisponível -> pedido segue pelo WhatsApp
     const linhas = itensPedido
       .map((i) => `▪ ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
       .join("\n");
@@ -96,6 +119,44 @@ export default function Checkout() {
     clear();
     setEnviando(false);
   };
+
+  if (confirmado) {
+    return (
+      <div className="checkout">
+        <div className="confirmacao">
+          <div className="confirmacao-icone">✓</div>
+          <h1>Pedido recebido!</h1>
+          <p className="confirmacao-numero">
+            Pedido <strong>#{confirmado.numero}</strong>
+          </p>
+          <p className="confirmacao-texto">
+            Já chegou aqui na Duo e vai pro preparo. Total de{" "}
+            <strong>{formatBRL(confirmado.total)}</strong> — pagamento na
+            entrega ({pagamento}
+            {pagamento === "Dinheiro" && troco.trim()
+              ? `, troco para ${troco.trim()}`
+              : ""}
+            ). Avisamos no seu WhatsApp quando sair pra entrega! 🟣
+          </p>
+          <div className="confirmacao-acoes">
+            <a
+              href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(
+                `Oi! Fiz o pedido #${confirmado.numero} pelo site 🟣`
+              )}`}
+              target="_blank"
+              rel="noopener"
+              className="btn-suave"
+            >
+              Falar com a Duo no WhatsApp
+            </a>
+            <Link href="/" className="btn-principal" style={{ maxWidth: 260 }}>
+              Voltar ao cardápio
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="checkout">
@@ -152,7 +213,7 @@ export default function Checkout() {
               />
             </div>
             <div className="campo">
-              <label htmlFor="telefone">Telefone (opcional)</label>
+              <label htmlFor="telefone">Telefone / WhatsApp *</label>
               <input
                 id="telefone"
                 value={telefone}
@@ -234,15 +295,24 @@ export default function Checkout() {
           </div>
 
           <button
-            className="btn-whats"
-            onClick={enviarWhatsApp}
+            className="btn-principal"
+            onClick={finalizarPedido}
             disabled={!valido || enviando}
           >
-            {enviando ? "Registrando pedido…" : "Enviar pedido pelo WhatsApp"}
+            {enviando ? "Enviando pedido…" : "Finalizar pedido"}
           </button>
           <p className="aviso">
-            Você será direcionado ao WhatsApp da Duo com o pedido pronto — é só
-            apertar enviar. Pagamento online (Pix e cartão) chega em breve.
+            Seu pedido vai direto pra cozinha da Duo 🟣 Prefere pedir pelo
+            WhatsApp?{" "}
+            <a
+              href={`https://wa.me/${STORE.whatsapp}`}
+              target="_blank"
+              rel="noopener"
+              style={{ color: "var(--roxo)", fontWeight: 600 }}
+            >
+              Clique aqui
+            </a>
+            . Pagamento online (Pix e cartão) chega em breve.
           </p>
         </>
       )}
