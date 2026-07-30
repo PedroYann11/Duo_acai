@@ -1,96 +1,79 @@
 -- ============================================================
--- DUO AÇAÍ — Schema do banco (rodar no SQL Editor do Supabase)
--- Usado a partir da Parte 2 (painel admin + pedidos no banco)
+-- DUO AÇAÍ — Schema do banco
+-- Como usar: Supabase -> SQL Editor -> colar tudo -> Run
 -- ============================================================
 
--- Produtos
-create table if not exists products (
-  id uuid primary key default gen_random_uuid(),
-  slug text unique not null,
-  name text not null,
-  description text default '',
-  price numeric(10,2) not null,
-  image_url text,
-  available boolean default true,
-  sort_order int default 0,
-  created_at timestamptz default now()
-);
-
--- Pedidos
+-- Pedidos (do site, do WhatsApp e do balcão)
 create table if not exists orders (
   id uuid primary key default gen_random_uuid(),
-  customer_name text not null,
+  channel text not null default 'site',   -- 'site' | 'whatsapp' | 'balcao'
+  customer_name text,
   customer_phone text,
-  street text not null,
-  number text not null,
-  neighborhood text not null,
+  street text,
+  number text,
+  neighborhood text,
   reference text,
-  payment_method text not null,          -- 'pix_online' | 'card_online' | 'pix' | 'dinheiro' | 'cartao_entrega'
-  change_for text,                       -- troco, se dinheiro
-  channel text not null default 'site',  -- 'site' | 'whatsapp'
+  payment_method text not null,           -- 'Pix' | 'Dinheiro' | 'Crédito' | 'Cartão na entrega'
+  change_for text,
   subtotal numeric(10,2) not null,
-  delivery_fee numeric(10,2) not null,
+  delivery_fee numeric(10,2) not null default 0,
   total numeric(10,2) not null,
   status text not null default 'recebido', -- recebido | em_preparo | saiu_entrega | entregue | cancelado
-  mp_payment_id text,                    -- id do pagamento no Mercado Pago (Parte 3)
   created_at timestamptz default now()
 );
 
--- Itens do pedido
+-- Itens de cada pedido
 create table if not exists order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid references orders(id) on delete cascade,
-  product_id uuid references products(id),
-  product_name text not null,   -- nome congelado no momento do pedido
+  product_slug text not null,   -- ex.: 'ninho', 'nutella'
+  product_name text not null,
   unit_price numeric(10,2) not null,
   qty int not null check (qty > 0)
 );
 
--- Configurações da loja (taxa de entrega, horário etc.)
-create table if not exists store_settings (
-  key text primary key,
-  value text not null
-);
+create index if not exists idx_orders_created on orders (created_at desc);
+create index if not exists idx_items_order on order_items (order_id);
 
-insert into store_settings (key, value) values
-  ('delivery_fee', '5.00'),
-  ('open_hours', 'Todos os dias, 10h às 22h'),
-  ('whatsapp', '5588992615069')
-on conflict (key) do nothing;
-
--- Segurança (RLS): leitura pública de produtos, escrita só autenticado
-alter table products enable row level security;
+-- ---------- Segurança (RLS) ----------
 alter table orders enable row level security;
 alter table order_items enable row level security;
-alter table store_settings enable row level security;
 
-create policy "produtos visíveis para todos" on products
-  for select using (true);
-
-create policy "config visível para todos" on store_settings
-  for select using (true);
-
--- Clientes criam pedidos (inserção anônima), mas só o admin lê/edita
-create policy "qualquer um cria pedido" on orders
+-- Qualquer visitante do site pode CRIAR um pedido...
+drop policy if exists "criar pedido" on orders;
+create policy "criar pedido" on orders
   for insert with check (true);
 
-create policy "qualquer um cria itens" on order_items
+drop policy if exists "criar itens" on order_items;
+create policy "criar itens" on order_items
   for insert with check (true);
 
-create policy "admin lê pedidos" on orders
+-- ...mas só o admin logado pode LER e ATUALIZAR
+-- (protege endereço e telefone dos clientes)
+drop policy if exists "admin le pedidos" on orders;
+create policy "admin le pedidos" on orders
   for select using (auth.role() = 'authenticated');
 
+drop policy if exists "admin atualiza pedidos" on orders;
 create policy "admin atualiza pedidos" on orders
   for update using (auth.role() = 'authenticated');
 
-create policy "admin lê itens" on order_items
+drop policy if exists "admin apaga pedidos" on orders;
+create policy "admin apaga pedidos" on orders
+  for delete using (auth.role() = 'authenticated');
+
+drop policy if exists "admin le itens" on order_items;
+create policy "admin le itens" on order_items
   for select using (auth.role() = 'authenticated');
 
-create policy "admin gerencia produtos" on products
-  for all using (auth.role() = 'authenticated');
+drop policy if exists "admin apaga itens" on order_items;
+create policy "admin apaga itens" on order_items
+  for delete using (auth.role() = 'authenticated');
 
-create policy "admin gerencia config" on store_settings
-  for all using (auth.role() = 'authenticated');
-
--- Habilitar realtime nos pedidos (painel atualiza na hora)
-alter publication supabase_realtime add table orders;
+-- ---------- Tempo real (pedido novo aparece na hora no painel) ----------
+do $$
+begin
+  alter publication supabase_realtime add table orders;
+exception when duplicate_object then
+  null;
+end $$;

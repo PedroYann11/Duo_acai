@@ -1,26 +1,13 @@
 import { PRODUCTS, STORE } from "@/lib/store";
 import { Header, ProductCard } from "@/components/Shop";
+import { Hero } from "@/components/Hero";
 
 export default function Home() {
   return (
     <>
       <Header />
 
-      <section className="hero">
-        <div className="hero-inner">
-          <span className="hero-eyebrow">Cremoso • Gelado • Viciante</span>
-          <h1>
-            O açaí <em>da garrafa</em>
-          </h1>
-          <p>
-            Açaí cremoso em camadas com os cremes mais pedidos, direto na
-            garrafa e na sua porta. Escolhe o sabor, o resto é com a gente.
-          </p>
-          <a href="#cardapio" className="hero-cta">
-            Ver cardápio
-          </a>
-        </div>
-      </section>
+      <Hero />
 
       {/* Assinatura: o creme escorrendo no açaí */}
       <svg

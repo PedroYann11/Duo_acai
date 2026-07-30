@@ -11,6 +11,7 @@ export const STORE = {
   deliveryFee: 5.0, // R$ — ajuste conforme a taxa real
   minOrder: 0, // pedido mínimo em R$ (0 = sem mínimo)
   openHours: "Todos os dias, 10h às 22h", // ajuste o horário real
+  adminPin: "duo2026", // TROQUE esta senha do painel /admin
 };
 
 export type Product = {

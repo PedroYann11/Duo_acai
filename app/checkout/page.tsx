@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { PRODUCTS, STORE, formatBRL } from "@/lib/store";
 import { useCart } from "@/lib/cart";
+import { criarPedidoSite } from "@/lib/data";
 
 type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
 
@@ -17,20 +18,54 @@ export default function Checkout() {
   const [referencia, setReferencia] = useState("");
   const [pagamento, setPagamento] = useState<Pagamento>("Pix");
   const [troco, setTroco] = useState("");
+  const [enviando, setEnviando] = useState(false);
 
   const valido =
     items.length > 0 && nome.trim() && rua.trim() && numero.trim() && bairro.trim();
 
-  const enviarWhatsApp = () => {
-    if (!valido) return;
+  const enviarWhatsApp = async () => {
+    if (!valido || enviando) return;
+    setEnviando(true);
 
-    const linhas = items
+    const itensPedido = items
       .map((item) => {
         const p = PRODUCTS.find((p) => p.id === item.productId);
-        if (!p) return "";
-        return `▪ ${item.qty}x ${p.name} — ${formatBRL(p.price * item.qty)}`;
+        if (!p) return null;
+        return {
+          product_slug: p.id,
+          product_name: p.name,
+          unit_price: p.price,
+          qty: item.qty,
+        };
       })
-      .filter(Boolean)
+      .filter(Boolean) as {
+      product_slug: string;
+      product_name: string;
+      unit_price: number;
+      qty: number;
+    }[];
+
+    // salva no banco (dashboard) — se falhar, o pedido segue pelo WhatsApp
+    try {
+      await criarPedidoSite({
+        customer_name: nome.trim(),
+        customer_phone: telefone.trim() || null,
+        street: rua.trim(),
+        number: numero.trim(),
+        neighborhood: bairro.trim(),
+        reference: referencia.trim() || null,
+        payment_method: pagamento,
+        change_for:
+          pagamento === "Dinheiro" && troco.trim() ? troco.trim() : null,
+        subtotal,
+        delivery_fee: STORE.deliveryFee,
+        total,
+        itens: itensPedido,
+      });
+    } catch {}
+
+    const linhas = itensPedido
+      .map((i) => `▪ ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
       .join("\n");
 
     const msg = [
@@ -59,6 +94,7 @@ export default function Checkout() {
     const url = `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(msg)}`;
     window.open(url, "_blank");
     clear();
+    setEnviando(false);
   };
 
   return (
@@ -200,9 +236,9 @@ export default function Checkout() {
           <button
             className="btn-whats"
             onClick={enviarWhatsApp}
-            disabled={!valido}
+            disabled={!valido || enviando}
           >
-            Enviar pedido pelo WhatsApp
+            {enviando ? "Registrando pedido…" : "Enviar pedido pelo WhatsApp"}
           </button>
           <p className="aviso">
             Você será direcionado ao WhatsApp da Duo com o pedido pronto — é só
