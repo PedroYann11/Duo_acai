@@ -102,6 +102,19 @@ Acesse **seudominio.com/admin** (ou duo-acai.vercel.app/admin).
 - Use "Registrar venda" pra balcão, dinheiro vivo e pedidos que chegaram
   direto no WhatsApp — os do site entram sozinhos
 
+## Promoções e cupons (v2.0)
+
+Rode também `supabase/v2-promocoes.sql` no SQL Editor. Depois, na aba
+**Promoções** do painel:
+
+- **Combo "leve X por Y"**: ex. 2 garrafas por R$35. Aplica sozinho no
+  carrinho pra qualquer sabor, sem o cliente digitar nada.
+- **Cupom de desconto**: código (ex. DUO10) com valor fixo (R$) ou
+  percentual (%), e pedido mínimo opcional. O cliente digita no checkout.
+
+O banner promocional (aba Loja) continua sendo só o aviso visual no topo —
+o desconto de verdade vem das promoções acima.
+
 ## Próxima parte
 
 - **Mercado Pago**: pagamento online com Pix e cartão direto no site.

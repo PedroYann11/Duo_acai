@@ -1516,3 +1516,322 @@ a {
   cursor: pointer;
   padding: 0;
 }
+
+/* ---------- Cupom no checkout ---------- */
+.cupom-linha {
+  display: flex;
+  gap: 8px;
+}
+
+.cupom-linha input {
+  flex: 1;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 12px;
+  outline: none;
+  text-transform: uppercase;
+}
+
+.cupom-linha input:focus {
+  border-color: var(--roxo);
+}
+
+.cupom-ok {
+  margin-top: 10px;
+  color: var(--roxo);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.cupom-erro {
+  margin-top: 10px;
+  color: #a05f16;
+  font-size: 0.9rem;
+}
+
+/* ============ Layout admin com sidebar responsiva ============ */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-sidebar {
+  width: 210px;
+  flex-shrink: 0;
+  background: var(--acai);
+  color: var(--creme);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.admin-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 18px;
+}
+
+.admin-logo img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+
+.admin-logo strong {
+  font-family: var(--fonte-display);
+  font-size: 1.35rem;
+  line-height: 1;
+  display: block;
+}
+
+.admin-logo span {
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lilas);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: none;
+  color: rgba(246, 236, 218, 0.8);
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: left;
+  position: relative;
+  transition: background 0.15s ease;
+}
+
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sidebar-item.ativo {
+  background: var(--roxo);
+  color: var(--creme);
+}
+
+.sidebar-icone {
+  font-size: 1.1rem;
+  width: 22px;
+  text-align: center;
+}
+
+.sidebar-badge {
+  margin-left: auto;
+  background: var(--maracuja);
+  color: var(--acai);
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+}
+
+.sidebar-rodape {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 10px;
+}
+
+.btn-sair {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--creme);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.admin-conteudo {
+  flex: 1;
+  padding: 30px 24px 100px;
+  min-width: 0;
+}
+
+.admin-conteudo h1 {
+  font-family: var(--fonte-display);
+  font-size: 1.6rem;
+  margin-bottom: 20px;
+}
+
+/* ===== Mobile: sidebar vira barra inferior ===== */
+@media (max-width: 720px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+  .admin-sidebar {
+    width: 100%;
+    height: auto;
+    position: fixed;
+    bottom: 0;
+    top: auto;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    flex-direction: row;
+    padding: 6px 4px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .admin-logo,
+  .sidebar-rodape {
+    display: none;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    gap: 2px;
+    justify-content: space-around;
+    width: 100%;
+    overflow-x: auto;
+  }
+  .sidebar-item {
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 4px;
+    font-size: 0.62rem;
+    min-width: 52px;
+    border-radius: 10px;
+  }
+  .sidebar-icone {
+    font-size: 1.25rem;
+    width: auto;
+  }
+  .sidebar-rotulo {
+    font-size: 0.6rem;
+  }
+  .sidebar-badge {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    margin: 0;
+    min-width: 16px;
+    height: 16px;
+    font-size: 0.62rem;
+  }
+  .admin-conteudo {
+    padding: 18px 16px 90px;
+  }
+  /* botão de som flutuante no mobile (topo direito do conteúdo) */
+  .admin-conteudo::before {
+    content: "";
+  }
+}
+
+/* Barra de topo mobile com som (aparece só no mobile) */
+.admin-topbar-mobile {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .admin-topbar-mobile {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .admin-topbar-mobile .admin-logo {
+    display: flex;
+    padding: 0;
+  }
+}
+
+/* ============ Dashboard moderno ============ */
+.kpi.destaque {
+  background: linear-gradient(155deg, var(--roxo), var(--acai));
+  color: var(--creme);
+}
+.kpi.destaque .rotulo,
+.kpi.destaque .detalhe {
+  color: rgba(246, 236, 218, 0.8);
+}
+.kpi.destaque .valor {
+  color: var(--maracuja);
+}
+
+.dash-duas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 640px) {
+  .dash-duas {
+    grid-template-columns: 1fr;
+  }
+}
+
+.grafico-linha {
+  width: 100%;
+  height: auto;
+}
+
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.donut {
+  width: 130px;
+  height: 130px;
+  flex-shrink: 0;
+}
+
+.donut-legenda {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.donut-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.donut-cor {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.donut-nome {
+  flex: 1;
+  font-weight: 600;
+}
+
+.donut-valor {
+  color: var(--texto-suave);
+  font-size: 0.8rem;
+}

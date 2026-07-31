@@ -5,6 +5,7 @@ import Link from "next/link";
 import { STORE, formatBRL, type Product } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
 import { useSettings } from "@/lib/settings-context";
+import { usePromos, calcularDescontoCombo } from "@/lib/promo-context";
 import { useCart } from "@/lib/cart";
 
 /* ---------- Header ---------- */
@@ -35,12 +36,18 @@ export function Header() {
 function CartDrawer({ onClose }: { onClose: () => void }) {
   const PRODUCTS = useProducts();
   const { config, bairros } = useSettings();
+  const promos = usePromos();
   const { items, setQty, subtotal } = useCart();
+  const precosItens = items.flatMap((it) => {
+    const p = PRODUCTS.find((x) => x.id === it.productId);
+    return p ? Array(it.qty).fill(p.price) : [];
+  });
+  const { desconto, promo } = calcularDescontoCombo(precosItens, promos);
   const modo = config.delivery.mode;
   const taxaDepois =
     (modo === "neighborhood" && bairros.length > 0) || modo === "km";
   const taxa = config.delivery.fee;
-  const total = subtotal + (taxaDepois ? 0 : taxa);
+  const total = subtotal - desconto + (taxaDepois ? 0 : taxa);
 
   return (
     <>
@@ -97,6 +104,12 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
               <span>Subtotal</span>
               <span>{formatBRL(subtotal)}</span>
             </div>
+            {desconto > 0 && (
+              <div className="linha-total" style={{ color: "var(--roxo)" }}>
+                <span>{promo?.name || "Desconto"}</span>
+                <span>-{formatBRL(desconto)}</span>
+              </div>
+            )}
             <div className="linha-total">
               <span>Entrega</span>
               <span>{taxaDepois ? "no fechamento" : formatBRL(taxa)}</span>

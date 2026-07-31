@@ -5,6 +5,7 @@ import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
 import { processarFoto } from "@/lib/image";
+import { mascaraTelefone } from "@/lib/masks";
 import {
   CONFIG_PADRAO,
   TEMA_PADRAO,
@@ -29,6 +30,11 @@ import {
   atualizarFotoProduto,
   type ProdutoAdmin,
   salvarConfig,
+  listarPromocoes,
+  criarPromocao,
+  alternarPromocao,
+  removerPromocao,
+  type PromocaoAdmin,
   listarBairrosAdmin,
   criarBairro,
   removerBairro,
@@ -148,7 +154,13 @@ export default function Admin() {
 
 function Painel() {
   const [aba, setAba] = useState<
-    "vender" | "dashboard" | "pedidos" | "vendedores" | "produtos" | "loja"
+    | "vender"
+    | "dashboard"
+    | "pedidos"
+    | "vendedores"
+    | "produtos"
+    | "loja"
+    | "promocoes"
   >("vender");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [toast, setToast] = useState("");
@@ -208,73 +220,84 @@ function Painel() {
     (p) => p.channel === "site" && !["entregue", "cancelado"].includes(p.status)
   ).length;
 
+  const abas: { id: typeof aba; rotulo: string; icone: string; badge?: number }[] =
+    [
+      { id: "vender", rotulo: "Registrar", icone: "\u{1F4B5}" },
+      { id: "dashboard", rotulo: "Dashboard", icone: "\u{1F4CA}" },
+      {
+        id: "pedidos",
+        rotulo: "Pedidos",
+        icone: "\u{1F6F5}",
+        badge: pendentes,
+      },
+      { id: "produtos", rotulo: "Produtos", icone: "\u{1F9CB}" },
+      { id: "loja", rotulo: "Loja", icone: "\u{1F3EA}" },
+      { id: "promocoes", rotulo: "Promoções", icone: "\u{1F3F7}" },
+      { id: "vendedores", rotulo: "Equipe", icone: "\u{1F465}" },
+    ];
+
   return (
-    <div className="admin">
-      <div className="admin-head">
-        <h1>Painel Duo</h1>
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-logo">
+          <img src="/icone-garrafa.png" alt="Duo" />
+          <div>
+            <strong>DUO</strong>
+            <span>painel</span>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {abas.map((a) => (
+            <button
+              key={a.id}
+              className={`sidebar-item ${aba === a.id ? "ativo" : ""}`}
+              onClick={() => setAba(a.id)}
+            >
+              <span className="sidebar-icone">{a.icone}</span>
+              <span className="sidebar-rotulo">{a.rotulo}</span>
+              {a.badge ? <span className="sidebar-badge">{a.badge}</span> : null}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-rodape">
+          <button
+            className="btn-som"
+            onClick={alternarNotif}
+            title={notifOn ? "Som: ligado" : "Som: desligado"}
+          >
+            {notifOn ? "\u{1F50A}" : "\u{1F507}"}
+          </button>
+          <button
+            className="btn-sair"
+            title="Sair do painel"
+            onClick={async () => {
+              if (!confirm("Sair do painel?")) return;
+              if (supabaseOn) await getSupabase().auth.signOut();
+              sessionStorage.removeItem("duo-admin");
+              window.location.reload();
+            }}
+          >
+            Sair
+          </button>
+        </div>
+      </aside>
+
+      <main className="admin-conteudo">
+      <div className="admin-topbar-mobile">
+        <div className="admin-logo">
+          <img src="/icone-garrafa.png" alt="Duo" />
+          <div>
+            <strong>DUO</strong>
+          </div>
+        </div>
         <button
           className="btn-som"
           onClick={alternarNotif}
-          title={
-            notifOn
-              ? "Som de pedido novo: ligado (toque para desligar)"
-              : "Som de pedido novo: desligado (toque para ligar)"
-          }
+          title={notifOn ? "Som: ligado" : "Som: desligado"}
         >
           {notifOn ? "\u{1F50A}" : "\u{1F507}"}
         </button>
       </div>
-      <div className="admin-tabs">
-        <button
-          className={`admin-tab ${aba === "vender" ? "ativo" : ""}`}
-          onClick={() => setAba("vender")}
-        >
-          Registrar venda
-        </button>
-        <button
-          className={`admin-tab ${aba === "dashboard" ? "ativo" : ""}`}
-          onClick={() => setAba("dashboard")}
-        >
-          Dashboard
-        </button>
-        <button
-          className={`admin-tab ${aba === "pedidos" ? "ativo" : ""}`}
-          onClick={() => setAba("pedidos")}
-        >
-          Pedidos{pendentes > 0 ? ` (${pendentes})` : ""}
-        </button>
-        <button
-          className={`admin-tab ${aba === "produtos" ? "ativo" : ""}`}
-          onClick={() => setAba("produtos")}
-        >
-          Produtos
-        </button>
-        <button
-          className={`admin-tab ${aba === "loja" ? "ativo" : ""}`}
-          onClick={() => setAba("loja")}
-        >
-          Loja
-        </button>
-        <button
-          className={`admin-tab ${aba === "vendedores" ? "ativo" : ""}`}
-          onClick={() => setAba("vendedores")}
-        >
-          Vendedores
-        </button>
-        <button
-          className="admin-tab"
-          title="Sair do painel"
-          onClick={async () => {
-            if (!confirm("Sair do painel?")) return;
-            if (supabaseOn) await getSupabase().auth.signOut();
-            sessionStorage.removeItem("duo-admin");
-            window.location.reload();
-          }}
-        >
-          Sair
-        </button>
-      </div>
-
       {aba === "vender" && (
         <RegistrarVenda
           onSalvo={() => {
@@ -291,8 +314,8 @@ function Painel() {
       {aba === "vendedores" && <Vendedores avisar={avisar} />}
       {aba === "produtos" && <Produtos avisar={avisar} />}
       {aba === "loja" && <Loja avisar={avisar} />}
+      {aba === "promocoes" && <Promocoes avisar={avisar} />}
 
-      {toast && <div className="toast-ok">{toast}</div>}
       {!supabaseOn && (
         <p className="aviso-local">
           <strong>Modo local:</strong> o Supabase ainda não foi conectado, então
@@ -301,6 +324,9 @@ function Painel() {
           nuvem.
         </p>
       )}
+      </main>
+
+      {toast && <div className="toast-ok">{toast}</div>}
     </div>
   );
 }
@@ -467,24 +493,29 @@ const NOME_CANAL: Record<string, string> = {
   balcao: "Balcão / manual",
 };
 
+const CORES_GRAFICO = ["#61174c", "#f2c230", "#a8c36b", "#c7a3dc", "#5a3a22"];
+
 function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
   const r = useMemo(() => resumo(pedidos), [pedidos]);
   const maxQtd = r.ranking.length ? r.ranking[0].qtd : 1;
-  const maxPag = Math.max(...Object.values(r.porPagamento), 1);
-  const maxCanal = Math.max(...Object.values(r.porCanal), 1);
 
   return (
     <>
       <div className="kpis">
-        <div className="kpi">
+        <div className="kpi destaque">
           <div className="rotulo">Hoje</div>
           <div className="valor">{formatBRL(r.recHoje)}</div>
           <div className="detalhe">{r.qtdHoje} venda(s)</div>
         </div>
         <div className="kpi">
-          <div className="rotulo">Últimos 7 dias</div>
+          <div className="rotulo">7 dias</div>
           <div className="valor">{formatBRL(r.rec7)}</div>
           <div className="detalhe">{r.qtd7} venda(s)</div>
+        </div>
+        <div className="kpi">
+          <div className="rotulo">Ticket médio</div>
+          <div className="valor">{formatBRL(r.ticketMedio)}</div>
+          <div className="detalhe">por venda</div>
         </div>
         <div className="kpi">
           <div className="rotulo">Total geral</div>
@@ -494,11 +525,26 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
       </div>
 
       <div className="bloco">
-        <h2>Sabores — do mais vendido ao menos vendido</h2>
+        <h2>Faturamento dos últimos 7 dias</h2>
+        <GraficoLinha serie={r.serie} />
+      </div>
+
+      <div className="dash-duas">
+        <div className="bloco">
+          <h2>Formas de pagamento</h2>
+          <GraficoDonut dados={r.porPagamento} />
+        </div>
+        <div className="bloco">
+          <h2>Por canal</h2>
+          <GraficoDonut dados={r.porCanal} nomes={NOME_CANAL} />
+        </div>
+      </div>
+
+      <div className="bloco">
+        <h2>Sabores — do mais ao menos vendido</h2>
         {r.ranking.length === 0 && (
           <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
-            Ainda sem vendas. Elas aparecem aqui assim que entrarem pelo site ou
-            forem registradas.
+            Ainda sem vendas. Aparecem aqui assim que entrarem.
           </p>
         )}
         {r.ranking.map((item, i) => (
@@ -524,70 +570,185 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
         ))}
       </div>
 
-      <div className="bloco">
-        <h2>Receita por forma de pagamento</h2>
-        {Object.entries(r.porPagamento).map(([forma, valor]) => (
-          <div className="barra-linha" key={forma}>
-            <span>{forma}</span>
-            <div className="barra-trilho">
-              <div
-                className="barra-fill"
-                style={{ width: `${(valor / maxPag) * 100}%` }}
-              />
-            </div>
-            <span className="barra-qtd">{formatBRL(valor)}</span>
-          </div>
-        ))}
-        {Object.keys(r.porPagamento).length === 0 && (
-          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>—</p>
-        )}
-      </div>
-
-      <div className="bloco">
-        <h2>Receita por canal</h2>
-        {Object.entries(r.porCanal).map(([canal, valor]) => (
-          <div className="barra-linha" key={canal}>
-            <span>{NOME_CANAL[canal] || canal}</span>
-            <div className="barra-trilho">
-              <div
-                className="barra-fill"
-                style={{ width: `${(valor / maxCanal) * 100}%` }}
-              />
-            </div>
-            <span className="barra-qtd">{formatBRL(valor)}</span>
-          </div>
-        ))}
-        {Object.keys(r.porCanal).length === 0 && (
-          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>—</p>
-        )}
-      </div>
-
-      <div className="bloco">
-        <h2>Vendas por vendedor</h2>
-        {Object.entries(r.porVendedor)
-          .sort((a, b) => b[1] - a[1])
-          .map(([nome, valor]) => {
-            const maxV = Math.max(...Object.values(r.porVendedor), 1);
-            return (
-              <div className="barra-linha" key={nome}>
-                <span>{nome}</span>
-                <div className="barra-trilho">
-                  <div
-                    className="barra-fill"
-                    style={{ width: `${(valor / maxV) * 100}%` }}
-                  />
+      {Object.keys(r.porVendedor).length > 0 && (
+        <div className="bloco">
+          <h2>Vendas por vendedor</h2>
+          {Object.entries(r.porVendedor)
+            .sort((a, b) => b[1] - a[1])
+            .map(([nome, valor]) => {
+              const maxV = Math.max(...Object.values(r.porVendedor), 1);
+              return (
+                <div className="barra-linha" key={nome}>
+                  <span>{nome}</span>
+                  <div className="barra-trilho">
+                    <div
+                      className="barra-fill"
+                      style={{ width: `${(valor / maxV) * 100}%` }}
+                    />
+                  </div>
+                  <span className="barra-qtd">{formatBRL(valor)}</span>
                 </div>
-                <span className="barra-qtd">{formatBRL(valor)}</span>
-              </div>
-            );
-          })}
-        {Object.keys(r.porVendedor).length === 0 && (
-          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
-            Aparece aqui quando houver vendas registradas com vendedor.
-          </p>
-        )}
-      </div>
+              );
+            })}
+        </div>
+      )}
     </>
+  );
+}
+
+/* Gráfico de linha em SVG (faturamento por dia) */
+function GraficoLinha({ serie }: { serie: { dia: string; valor: number }[] }) {
+  const W = 560;
+  const H = 180;
+  const pad = 30;
+  const max = Math.max(...serie.map((s) => s.valor), 1);
+  const passoX = (W - pad * 2) / Math.max(serie.length - 1, 1);
+  const pontos = serie.map((s, i) => ({
+    x: pad + i * passoX,
+    y: H - pad - (s.valor / max) * (H - pad * 2),
+    ...s,
+  }));
+  const caminho = pontos
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
+    .join(" ");
+  const area = `${caminho} L ${pontos[pontos.length - 1].x} ${H - pad} L ${pontos[0].x} ${H - pad} Z`;
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="grafico-linha"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--roxo)" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="var(--roxo)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#areaGrad)" />
+      <path
+        d={caminho}
+        fill="none"
+        stroke="var(--roxo)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+      {pontos.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="4" fill="var(--roxo)" />
+          {p.valor > 0 && (
+            <text
+              x={p.x}
+              y={p.y - 10}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--texto-suave)"
+              fontWeight="600"
+            >
+              {p.valor.toFixed(0)}
+            </text>
+          )}
+          <text
+            x={p.x}
+            y={H - pad + 16}
+            textAnchor="middle"
+            fontSize="10"
+            fill="var(--texto-suave)"
+          >
+            {p.dia}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+/* Gráfico donut em SVG */
+function GraficoDonut({
+  dados,
+  nomes,
+}: {
+  dados: Record<string, number>;
+  nomes?: Record<string, string>;
+}) {
+  const entradas = Object.entries(dados).filter(([, v]) => v > 0);
+  const total = entradas.reduce((a, [, v]) => a + v, 0);
+
+  if (total === 0)
+    return (
+      <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+        Sem dados ainda.
+      </p>
+    );
+
+  const raio = 52;
+  const circ = 2 * Math.PI * raio;
+  let acumulado = 0;
+  const fatias = entradas.map(([nome, valor], i) => {
+    const fracao = valor / total;
+    const dash = fracao * circ;
+    const offset = circ - acumulado * circ;
+    acumulado += fracao;
+    return {
+      nome: nomes?.[nome] || nome,
+      valor,
+      cor: CORES_GRAFICO[i % CORES_GRAFICO.length],
+      dash,
+      offset,
+      pct: Math.round(fracao * 100),
+    };
+  });
+
+  return (
+    <div className="donut-wrap">
+      <svg viewBox="0 0 140 140" className="donut">
+        {fatias.map((f, i) => (
+          <circle
+            key={i}
+            cx="70"
+            cy="70"
+            r={raio}
+            fill="none"
+            stroke={f.cor}
+            strokeWidth="18"
+            strokeDasharray={`${f.dash} ${circ - f.dash}`}
+            strokeDashoffset={f.offset}
+            transform="rotate(-90 70 70)"
+          />
+        ))}
+        <text
+          x="70"
+          y="66"
+          textAnchor="middle"
+          fontSize="11"
+          fill="var(--texto-suave)"
+        >
+          total
+        </text>
+        <text
+          x="70"
+          y="82"
+          textAnchor="middle"
+          fontSize="13"
+          fontWeight="800"
+          fill="var(--roxo)"
+          fontFamily="Bricolage Grotesque, sans-serif"
+        >
+          {formatBRL(total).replace("R$\u00a0", "")}
+        </text>
+      </svg>
+      <div className="donut-legenda">
+        {fatias.map((f, i) => (
+          <div className="donut-item" key={i}>
+            <span className="donut-cor" style={{ background: f.cor }} />
+            <span className="donut-nome">{f.nome}</span>
+            <span className="donut-valor">
+              {f.pct}% · {formatBRL(f.valor)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1863,6 +2024,247 @@ function DatasEspeciais({
       >
         + Adicionar data
       </button>
+    </>
+  );
+}
+
+
+/* ================= Promoções ================= */
+
+function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
+  const [lista, setLista] = useState<PromocaoAdmin[]>([]);
+  const [tipo, setTipo] = useState<"combo" | "coupon">("combo");
+  const [carregando, setCarregando] = useState(true);
+
+  // combo
+  const [nome, setNome] = useState("");
+  const [qty, setQty] = useState("2");
+  const [preco, setPreco] = useState("");
+  // cupom
+  const [code, setCode] = useState("");
+  const [descTipo, setDescTipo] = useState<"percent" | "fixed">("fixed");
+  const [descValor, setDescValor] = useState("");
+  const [minPedido, setMinPedido] = useState("");
+
+  const carregar = async () => {
+    setLista(await listarPromocoes());
+    setCarregando(false);
+  };
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  const criar = async () => {
+    try {
+      if (tipo === "combo") {
+        const q = parseInt(qty);
+        const p = parseFloat(preco.replace(",", "."));
+        if (!nome.trim() || !q || q < 2 || isNaN(p) || p <= 0) {
+          avisar("Confira nome, quantidade (2+) e preço");
+          return;
+        }
+        await criarPromocao({
+          name: nome.trim(),
+          kind: "combo",
+          combo_qty: q,
+          combo_price: p,
+          code: null,
+          discount_kind: null,
+          discount_value: null,
+          min_order: 0,
+          active: true,
+        });
+      } else {
+        const v = parseFloat(descValor.replace(",", "."));
+        if (!code.trim() || isNaN(v) || v <= 0) {
+          avisar("Confira o código e o valor do desconto");
+          return;
+        }
+        await criarPromocao({
+          name: `Cupom ${code.trim().toUpperCase()}`,
+          kind: "coupon",
+          combo_qty: null,
+          combo_price: null,
+          code: code.trim().toUpperCase(),
+          discount_kind: descTipo,
+          discount_value: v,
+          min_order: parseFloat(minPedido.replace(",", ".")) || 0,
+          active: true,
+        });
+      }
+      setNome("");
+      setPreco("");
+      setCode("");
+      setDescValor("");
+      setMinPedido("");
+      carregar();
+      avisar("Promoção criada");
+    } catch (e: any) {
+      avisar(e.message || "Erro ao criar");
+    }
+  };
+
+  if (!supabaseOn)
+    return (
+      <p className="aviso-local">
+        As promoções precisam do Supabase conectado. Rode também o arquivo
+        supabase/v2-promocoes.sql no SQL Editor.
+      </p>
+    );
+
+  return (
+    <>
+      <div className="bloco">
+        <h2>Nova promoção</h2>
+        <div className="pill-group" style={{ marginBottom: 14 }}>
+          <button
+            className={`pill ${tipo === "combo" ? "ativo" : ""}`}
+            onClick={() => setTipo("combo")}
+          >
+            Combo (leve X por Y)
+          </button>
+          <button
+            className={`pill ${tipo === "coupon" ? "ativo" : ""}`}
+            onClick={() => setTipo("coupon")}
+          >
+            Cupom de desconto
+          </button>
+        </div>
+
+        {tipo === "combo" ? (
+          <>
+            <div className="campo">
+              <label>Nome (aparece pro cliente)</label>
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="2 garrafas por R$35"
+              />
+            </div>
+            <div className="duas-colunas">
+              <div className="campo">
+                <label>Quantidade</label>
+                <input
+                  inputMode="numeric"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  placeholder="2"
+                />
+              </div>
+              <div className="campo">
+                <label>Preço do combo (R$)</label>
+                <input
+                  inputMode="decimal"
+                  value={preco}
+                  onChange={(e) => setPreco(e.target.value)}
+                  placeholder="35,00"
+                />
+              </div>
+            </div>
+            <p className="aviso" style={{ textAlign: "left" }}>
+              A cada {qty || "X"} garrafas no carrinho, o cliente paga{" "}
+              {preco ? formatBRL(parseFloat(preco.replace(",", ".")) || 0) : "o preço do combo"}.
+              Aplica sozinho — vale pra qualquer sabor.
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="campo">
+              <label>Código do cupom</label>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="DUO10"
+                style={{ textTransform: "uppercase" }}
+              />
+            </div>
+            <div className="pill-group" style={{ marginBottom: 12 }}>
+              <button
+                className={`pill ${descTipo === "fixed" ? "ativo" : ""}`}
+                onClick={() => setDescTipo("fixed")}
+              >
+                R$ fixo
+              </button>
+              <button
+                className={`pill ${descTipo === "percent" ? "ativo" : ""}`}
+                onClick={() => setDescTipo("percent")}
+              >
+                % percentual
+              </button>
+            </div>
+            <div className="duas-colunas">
+              <div className="campo">
+                <label>{descTipo === "fixed" ? "Desconto (R$)" : "Desconto (%)"}</label>
+                <input
+                  inputMode="decimal"
+                  value={descValor}
+                  onChange={(e) => setDescValor(e.target.value)}
+                  placeholder={descTipo === "fixed" ? "5,00" : "10"}
+                />
+              </div>
+              <div className="campo">
+                <label>Pedido mínimo (R$, opcional)</label>
+                <input
+                  inputMode="decimal"
+                  value={minPedido}
+                  onChange={(e) => setMinPedido(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        <button className="btn-principal" onClick={criar}>
+          Criar promoção
+        </button>
+      </div>
+
+      <div className="bloco">
+        <h2>Promoções ativas</h2>
+        {carregando && <p style={{ color: "var(--texto-suave)" }}>Carregando…</p>}
+        {!carregando && lista.length === 0 && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Nenhuma promoção ainda.
+          </p>
+        )}
+        {lista.map((p) => (
+          <div className="hist-item" key={p.id}>
+            <div style={{ flex: 1 }}>
+              <strong>{p.name}</strong>
+              <div style={{ fontSize: "0.82rem", color: "var(--texto-suave)" }}>
+                {p.kind === "combo"
+                  ? `Leve ${p.combo_qty} por ${formatBRL(p.combo_price || 0)}`
+                  : `Código ${p.code} · ${
+                      p.discount_kind === "percent"
+                        ? `${p.discount_value}%`
+                        : formatBRL(p.discount_value || 0)
+                    }${p.min_order ? ` · mín. ${formatBRL(p.min_order)}` : ""}`}
+              </div>
+            </div>
+            <button
+              className={`pill ${p.active ? "ativo" : ""}`}
+              onClick={async () => {
+                await alternarPromocao(p.id, !p.active);
+                carregar();
+              }}
+            >
+              {p.active ? "Ativa" : "Pausada"}
+            </button>
+            <button
+              className="btn-x"
+              onClick={async () => {
+                if (confirm("Remover esta promoção?")) {
+                  await removerPromocao(p.id);
+                  carregar();
+                }
+              }}
+            >
+              remover
+            </button>
+          </div>
+        ))}
+      </div>
     </>
   );
 }

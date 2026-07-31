@@ -3,6 +3,7 @@ import "./globals.css";
 import { CartProvider } from "@/lib/cart";
 import { ProductsProvider } from "@/lib/products-context";
 import { SettingsProvider } from "@/lib/settings-context";
+import { PromoProvider } from "@/lib/promo-context";
 import { ThemeApplier } from "@/components/ThemeApplier";
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head>
+        <link rel="icon" href="/favicon.png" type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"

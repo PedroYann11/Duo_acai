@@ -239,6 +239,19 @@ variáveis do Supabase pra testar o banco localmente.
 
 ---
 
+## Painel no celular
+
+O painel usa barra lateral no computador e barra inferior no celular
+(como um app). Todas as abas funcionam nos dois. O botão de som fica no
+rodapé da barra lateral (PC) ou no topo (celular).
+
+## Promoções (aba Promoções)
+
+- **Combo**: "2 garrafas por R$35" aplica sozinho. Crie com quantidade e
+  preço do combo.
+- **Cupom**: código com desconto fixo ou percentual, digitado pelo cliente
+  no checkout.
+
 ## Se algo der errado
 
 1. Deployments na Vercel → deploy vermelho → **Build Logs** mostra o erro

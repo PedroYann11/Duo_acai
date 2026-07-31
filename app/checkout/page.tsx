@@ -9,6 +9,15 @@ import {
   situacaoDaLoja,
   useSettings,
 } from "@/lib/settings-context";
+import {
+  usePromos,
+  calcularDescontoCombo,
+  aplicarCupom,
+} from "@/lib/promo-context";
+import {
+  mascaraTelefone,
+  capitalizarEndereco,
+} from "@/lib/masks";
 import { useCart } from "@/lib/cart";
 import { criarPedidoSite } from "@/lib/data";
 import { gerarPixCopiaECola } from "@/lib/pix";
@@ -72,10 +81,44 @@ export default function Checkout() {
   const [pagamento, setPagamento] = useState<Pagamento>("Pix");
   const [troco, setTroco] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [cupomTexto, setCupomTexto] = useState("");
+  const [cupomAplicado, setCupomAplicado] = useState<{
+    desconto: number;
+    msg: string;
+    code: string;
+  } | null>(null);
+  const [cupomErro, setCupomErro] = useState("");
   const [confirmado, setConfirmado] = useState<{
     numero: string;
     total: number;
   } | null>(null);
+  const promos = usePromos();
+
+  const precosItens = items.flatMap((it) => {
+    const p = PRODUCTS.find((x) => x.id === it.productId);
+    return p ? Array(it.qty).fill(p.price) : [];
+  });
+  const { desconto: descontoCombo, promo: promoCombo } = calcularDescontoCombo(
+    precosItens,
+    promos
+  );
+  const descontoCupom = cupomAplicado?.desconto || 0;
+  const descontoTotal = descontoCombo + descontoCupom;
+
+  const aplicarCupomTexto = () => {
+    setCupomErro("");
+    const r = aplicarCupom(cupomTexto, subtotal, promos);
+    if (r.ok) {
+      setCupomAplicado({
+        desconto: r.desconto,
+        msg: r.msg,
+        code: cupomTexto.trim().toUpperCase(),
+      });
+    } else {
+      setCupomAplicado(null);
+      setCupomErro(r.msg || "Cupom inválido.");
+    }
+  };
 
   const bairroSelecionado = porBairro
     ? bairros.find((b) => b.name === bairro) || null
@@ -85,7 +128,7 @@ export default function Checkout() {
     : porKm && kmInfo
       ? kmInfo.taxa
       : config.delivery.fee;
-  const total = subtotal + taxaEntrega;
+  const total = subtotal - descontoTotal + taxaEntrega;
   const minimo = config.delivery.min_order || 0;
   const abaixoDoMinimo = minimo > 0 && subtotal < minimo;
 
@@ -165,6 +208,7 @@ export default function Checkout() {
       linhas,
       ``,
       `Subtotal: ${formatBRL(subtotal)}`,
+      descontoTotal > 0 ? `Desconto: -${formatBRL(descontoTotal)}` : "",
       `Entrega: ${formatBRL(taxaEntrega)}`,
       `*Total: ${formatBRL(total)}*`,
       ``,
@@ -318,6 +362,18 @@ export default function Checkout() {
                 </div>
               );
             })}
+            {descontoCombo > 0 && (
+              <div className="resumo-item" style={{ color: "var(--roxo)" }}>
+                <span>{promoCombo?.name || "Promoção"}</span>
+                <span>-{formatBRL(descontoCombo)}</span>
+              </div>
+            )}
+            {descontoCupom > 0 && (
+              <div className="resumo-item" style={{ color: "var(--roxo)" }}>
+                <span>Cupom {cupomAplicado?.code}</span>
+                <span>-{formatBRL(descontoCupom)}</span>
+              </div>
+            )}
             <div className="resumo-item">
               <span>
                 Entrega
@@ -340,6 +396,27 @@ export default function Checkout() {
           </div>
 
           <div className="bloco">
+            <h2>Cupom de desconto</h2>
+            <div className="cupom-linha">
+              <input
+                value={cupomTexto}
+                onChange={(e) => {
+                  setCupomTexto(e.target.value.toUpperCase());
+                  setCupomErro("");
+                }}
+                placeholder="Tem um cupom? Digite aqui"
+              />
+              <button className="btn-suave" onClick={aplicarCupomTexto}>
+                Aplicar
+              </button>
+            </div>
+            {cupomAplicado && (
+              <p className="cupom-ok">{cupomAplicado.msg}</p>
+            )}
+            {cupomErro && <p className="cupom-erro">{cupomErro}</p>}
+          </div>
+
+          <div className="bloco">
             <h2>Seus dados</h2>
             <div className="campo">
               <label htmlFor="nome">Nome *</label>
@@ -347,6 +424,7 @@ export default function Checkout() {
                 id="nome"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
+                onBlur={() => setNome(capitalizarEndereco(nome))}
                 placeholder="Seu nome"
               />
             </div>
@@ -355,7 +433,7 @@ export default function Checkout() {
               <input
                 id="telefone"
                 value={telefone}
-                onChange={(e) => setTelefone(e.target.value)}
+                onChange={(e) => setTelefone(mascaraTelefone(e.target.value))}
                 placeholder="(88) 9 9999-9999"
                 inputMode="tel"
               />
@@ -371,6 +449,7 @@ export default function Checkout() {
                   id="rua"
                   value={rua}
                   onChange={(e) => setRua(e.target.value)}
+                  onBlur={() => setRua(capitalizarEndereco(rua))}
                   placeholder="Rua / Avenida"
                 />
               </div>

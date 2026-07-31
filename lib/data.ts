@@ -355,7 +355,30 @@ export function resumo(pedidos: Pedido[]) {
     .map(([slug, dados]) => ({ slug, ...dados }))
     .sort((a, b) => b.qtd - a.qtd);
 
+  // série dos últimos 7 dias (para o gráfico de linha)
+  const serie: { dia: string; valor: number }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i);
+    const rotulo = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    let soma = 0;
+    for (const p of validos) {
+      const pd = new Date(p.created_at);
+      if (
+        pd.getFullYear() === d.getFullYear() &&
+        pd.getMonth() === d.getMonth() &&
+        pd.getDate() === d.getDate()
+      )
+        soma += Number(p.total);
+    }
+    serie.push({ dia: rotulo, valor: Math.round(soma * 100) / 100 });
+  }
+
+  const ticketMedio = validos.length > 0 ? recTotal / validos.length : 0;
+
   return {
+    serie,
+    ticketMedio,
     recHoje,
     qtdHoje,
     rec7,
@@ -540,4 +563,57 @@ export async function removerBairro(id: string): Promise<void> {
   const sb = getSupabase();
   const { error } = await sb.from("neighborhoods").delete().eq("id", id);
   if (error) throw new Error("Não foi possível remover");
+}
+
+
+// ---------- promoções (aba Promoções) ----------
+
+export type PromocaoAdmin = {
+  id: string;
+  name: string;
+  kind: "combo" | "coupon";
+  combo_qty: number | null;
+  combo_price: number | null;
+  code: string | null;
+  discount_kind: "percent" | "fixed" | null;
+  discount_value: number | null;
+  min_order: number;
+  active: boolean;
+};
+
+export async function listarPromocoes(): Promise<PromocaoAdmin[]> {
+  if (!supabaseOn) return [];
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("promotions")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return data.map((p: any) => ({
+    ...p,
+    combo_price: p.combo_price != null ? Number(p.combo_price) : null,
+    discount_value: p.discount_value != null ? Number(p.discount_value) : null,
+    min_order: Number(p.min_order || 0),
+  }));
+}
+
+export async function criarPromocao(
+  p: Omit<PromocaoAdmin, "id">
+): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.from("promotions").insert(p);
+  if (error) throw new Error("Não foi possível criar a promoção");
+}
+
+export async function alternarPromocao(
+  id: string,
+  active: boolean
+): Promise<void> {
+  const sb = getSupabase();
+  await sb.from("promotions").update({ active }).eq("id", id);
+}
+
+export async function removerPromocao(id: string): Promise<void> {
+  const sb = getSupabase();
+  await sb.from("promotions").delete().eq("id", id);
 }
