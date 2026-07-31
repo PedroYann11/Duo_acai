@@ -36,9 +36,11 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
   const PRODUCTS = useProducts();
   const { config, bairros } = useSettings();
   const { items, setQty, subtotal } = useCart();
-  const porBairro = config.delivery.by_neighborhood && bairros.length > 0;
+  const modo = config.delivery.mode;
+  const taxaDepois =
+    (modo === "neighborhood" && bairros.length > 0) || modo === "km";
   const taxa = config.delivery.fee;
-  const total = subtotal + (porBairro ? 0 : taxa);
+  const total = subtotal + (taxaDepois ? 0 : taxa);
 
   return (
     <>
@@ -97,10 +99,10 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
             </div>
             <div className="linha-total">
               <span>Entrega</span>
-              <span>{porBairro ? "por bairro" : formatBRL(taxa)}</span>
+              <span>{taxaDepois ? "no fechamento" : formatBRL(taxa)}</span>
             </div>
             <div className="linha-total forte">
-              <span>{porBairro ? "Subtotal" : "Total"}</span>
+              <span>{taxaDepois ? "Subtotal" : "Total"}</span>
               <span>{formatBRL(total)}</span>
             </div>
             <Link href="/checkout" className="btn-principal" onClick={onClose}>

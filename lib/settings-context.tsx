@@ -12,10 +12,21 @@ import { getSupabase, supabaseOn } from "./supabase";
 
 export type HorarioDia = { closed: boolean; open: string; close: string };
 
+export type ModoEntrega = "fixed" | "neighborhood" | "km";
+
 export type ConfigLoja = {
   store_open: { open: boolean; message: string };
   banner: { active: boolean; text: string };
-  delivery: { fee: number; min_order: number; by_neighborhood: boolean };
+  delivery: {
+    fee: number;
+    min_order: number;
+    by_neighborhood: boolean; // legado (v1.8) — mantido por compatibilidade
+    mode: ModoEntrega;
+    km_base: number; // taxa base em R$
+    km_price: number; // R$ por km
+    store_lat: number;
+    store_lng: number;
+  };
   hours: Record<string, HorarioDia>;
   special_dates: { date: string; label: string }[];
   contact: {
@@ -23,6 +34,13 @@ export type ConfigLoja = {
     pix_key: string;
     pix_name: string;
     pix_city: string;
+  };
+  theme: {
+    roxo: string;
+    acai: string;
+    maracuja: string;
+    creme: string;
+    lilas: string;
   };
 };
 
@@ -35,6 +53,14 @@ const HORARIO_PADRAO: Record<string, HorarioDia> = Object.fromEntries(
   ])
 );
 
+export const TEMA_PADRAO = {
+  roxo: "#61174c",
+  acai: "#2e0b26",
+  maracuja: "#f2c230",
+  creme: "#f6ecda",
+  lilas: "#c7a3dc",
+};
+
 export const CONFIG_PADRAO: ConfigLoja = {
   store_open: { open: true, message: "" },
   banner: { active: false, text: "" },
@@ -42,6 +68,11 @@ export const CONFIG_PADRAO: ConfigLoja = {
     fee: STORE.deliveryFee,
     min_order: STORE.minOrder,
     by_neighborhood: false,
+    mode: "fixed",
+    km_base: 3.0,
+    km_price: 1.0,
+    store_lat: -7.233266, // Rua José Marrocos, 145 — Pinto Madeira, Crato/CE
+    store_lng: -39.407392,
   },
   hours: HORARIO_PADRAO,
   special_dates: [],
@@ -51,6 +82,7 @@ export const CONFIG_PADRAO: ConfigLoja = {
     pix_name: STORE.pixName,
     pix_city: STORE.pixCity,
   },
+  theme: { ...TEMA_PADRAO },
 };
 
 type Ctx = { config: ConfigLoja; bairros: Bairro[] };
@@ -59,6 +91,27 @@ const SettingsContext = createContext<Ctx>({
   config: CONFIG_PADRAO,
   bairros: [],
 });
+
+/** Escurece uma cor hex (para o tom de hover derivado do roxo) */
+export function escurecer(hex: string, fator = 0.75): string {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return hex;
+  const n = (i: number) =>
+    Math.max(0, Math.round(parseInt(m.slice(i, i + 2), 16) * fator))
+      .toString(16)
+      .padStart(2, "0");
+  return `#${n(0)}${n(2)}${n(4)}`;
+}
+
+export function aplicarTema(theme: ConfigLoja["theme"]) {
+  const r = document.documentElement.style;
+  r.setProperty("--roxo", theme.roxo);
+  r.setProperty("--acai", theme.acai);
+  r.setProperty("--maracuja", theme.maracuja);
+  r.setProperty("--creme", theme.creme);
+  r.setProperty("--lilas", theme.lilas);
+  r.setProperty("--acai-2", escurecer(theme.roxo, 0.72));
+}
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<ConfigLoja>(CONFIG_PADRAO);
@@ -76,20 +129,30 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (cfg.data && cfg.data.length > 0) {
           const novo: any = { ...CONFIG_PADRAO };
           for (const linha of cfg.data) {
-            novo[linha.key] = { ...(novo as any)[linha.key], ...linha.value };
             if (linha.key === "special_dates") novo[linha.key] = linha.value;
+            else
+              novo[linha.key] = { ...(novo as any)[linha.key], ...linha.value };
+          }
+          // compatibilidade: v1.8 usava by_neighborhood em vez de mode
+          if (!novo.delivery.mode) {
+            novo.delivery.mode = novo.delivery.by_neighborhood
+              ? "neighborhood"
+              : "fixed";
           }
           setConfig(novo as ConfigLoja);
         }
         if (viz.data)
-          setBairros(
-            viz.data.map((b: any) => ({ ...b, fee: Number(b.fee) }))
-          );
+          setBairros(viz.data.map((b: any) => ({ ...b, fee: Number(b.fee) })));
       } catch {
-        // plano B silencioso: usa padrão do código
+        // plano B silencioso
       }
     })();
   }, []);
+
+  // aplica as cores do tema no site inteiro
+  useEffect(() => {
+    aplicarTema(config.theme);
+  }, [config.theme]);
 
   return (
     <SettingsContext.Provider value={{ config, bairros }}>
@@ -102,17 +165,70 @@ export function useSettings(): Ctx {
   return useContext(SettingsContext);
 }
 
-/** Situação da loja neste exato momento (usa o relógio do visitante) */
+/** Distância aproximada em km entre dois pontos (Haversine, linha reta) */
+export function distanciaKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const R = 6371;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const DIAS_SEMANA = [
+  "domingo",
+  "segunda",
+  "terça",
+  "quarta",
+  "quinta",
+  "sexta",
+  "sábado",
+];
+
+/** Quando a loja abre de novo (texto amigável), ou null em modo férias */
+export function proximaAbertura(config: ConfigLoja): string | null {
+  if (!config.store_open.open) return null;
+
+  const agora = new Date();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(agora);
+    d.setDate(d.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (config.special_dates.some((e) => e.date === iso)) continue;
+    const dia = config.hours[String(d.getDay())];
+    if (!dia || dia.closed) continue;
+
+    if (i === 0) {
+      const hm = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+      if (hm < dia.open) return `Abrimos hoje às ${dia.open}`;
+      continue; // hoje já passou do horário
+    }
+    if (i === 1) return `Abrimos amanhã às ${dia.open}`;
+    if (i < 7) return `Abrimos ${DIAS_SEMANA[d.getDay()]} às ${dia.open}`;
+    return `Abrimos dia ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} às ${dia.open}`;
+  }
+  return null;
+}
+
+/** Situação da loja neste exato momento (relógio do visitante) */
 export function situacaoDaLoja(config: ConfigLoja): {
   aberta: boolean;
   motivo: string;
+  reabre: string | null;
 } {
   if (!config.store_open.open) {
     return {
       aberta: false,
       motivo:
-        config.store_open.message ||
-        "Estamos em uma pausa. Voltamos em breve!",
+        config.store_open.message || "Estamos em uma pausa. Voltamos em breve!",
+      reabre: null,
     };
   }
 
@@ -125,29 +241,33 @@ export function situacaoDaLoja(config: ConfigLoja): {
       motivo: especial.label
         ? `Hoje estamos fechados: ${especial.label}.`
         : "Hoje estamos fechados.",
+      reabre: proximaAbertura(config),
     };
   }
 
   const dia = config.hours[String(agora.getDay())];
   if (!dia || dia.closed) {
-    return { aberta: false, motivo: "Hoje estamos fechados. Até amanhã!" };
+    return {
+      aberta: false,
+      motivo: "Hoje estamos fechados.",
+      reabre: proximaAbertura(config),
+    };
   }
 
   const hm = `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
   const dentro =
     dia.open <= dia.close
       ? hm >= dia.open && hm <= dia.close
-      : hm >= dia.open || hm <= dia.close; // vira a madrugada
+      : hm >= dia.open || hm <= dia.close;
 
   if (!dentro) {
     return {
       aberta: false,
       motivo:
-        hm < dia.open
-          ? `Abrimos hoje às ${dia.open}. Já já tem açaí!`
-          : `Encerramos por hoje. Amanhã tem mais!`,
+        hm < dia.open ? "Ainda não abrimos hoje." : "Já encerramos por hoje.",
+      reabre: proximaAbertura(config),
     };
   }
 
-  return { aberta: true, motivo: "" };
+  return { aberta: true, motivo: "", reabre: null };
 }

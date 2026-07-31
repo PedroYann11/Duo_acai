@@ -5,6 +5,7 @@ import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
 import {
+  distanciaKm,
   situacaoDaLoja,
   useSettings,
 } from "@/lib/settings-context";
@@ -20,7 +21,48 @@ export default function Checkout() {
   const { config, bairros } = useSettings();
   const { items, subtotal, clear } = useCart();
   const situacao = situacaoDaLoja(config);
-  const porBairro = config.delivery.by_neighborhood && bairros.length > 0;
+  const modo = config.delivery.mode;
+  const porBairro = modo === "neighborhood" && bairros.length > 0;
+  const porKm = modo === "km";
+  const [kmInfo, setKmInfo] = useState<{ km: number; taxa: number } | null>(
+    null
+  );
+  const [calculandoKm, setCalculandoKm] = useState(false);
+  const [erroKm, setErroKm] = useState("");
+
+  const calcularPorLocalizacao = () => {
+    setErroKm("");
+    if (!("geolocation" in navigator)) {
+      setErroKm("Seu navegador não permite localização. Usaremos a taxa padrão.");
+      return;
+    }
+    setCalculandoKm(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // linha reta x 1.3 pra aproximar o trajeto real das ruas
+        const kmReta = distanciaKm(
+          config.delivery.store_lat,
+          config.delivery.store_lng,
+          pos.coords.latitude,
+          pos.coords.longitude
+        );
+        const km = Math.round(kmReta * 1.3 * 10) / 10;
+        const taxa =
+          Math.round(
+            (config.delivery.km_base + km * config.delivery.km_price) * 100
+          ) / 100;
+        setKmInfo({ km, taxa });
+        setCalculandoKm(false);
+      },
+      () => {
+        setErroKm(
+          "Não conseguimos sua localização. Sem ela, vale a taxa padrão."
+        );
+        setCalculandoKm(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [rua, setRua] = useState("");
@@ -40,7 +82,9 @@ export default function Checkout() {
     : null;
   const taxaEntrega = porBairro
     ? bairroSelecionado?.fee ?? 0
-    : config.delivery.fee;
+    : porKm && kmInfo
+      ? kmInfo.taxa
+      : config.delivery.fee;
   const total = subtotal + taxaEntrega;
   const minimo = config.delivery.min_order || 0;
   const abaixoDoMinimo = minimo > 0 && subtotal < minimo;
@@ -154,14 +198,15 @@ export default function Checkout() {
             Pedido <strong>#{confirmado.numero}</strong>
           </p>
           <p className="confirmacao-texto">
-            {"Já fomos buscar seu açaí no canto mais gelado do freezer. "}
-            Total de{" "}
+            {"Já fomos buscar seu açaí no canto mais gelado do freezer "}
+            {"\u{1F9CA}"} Total de{" "}
             <strong>{formatBRL(confirmado.total)}</strong> — pagamento na
             entrega ({pagamento}
             {pagamento === "Dinheiro" && troco.trim()
               ? `, troco para ${troco.trim()}`
               : ""}
-            ). Avisamos no seu WhatsApp quando sair pra entrega!
+            ). {"Avisamos no seu WhatsApp quando sair pra entrega! "}
+            {"\u{1F6F5}"}
           </p>
           {pagamento === "Pix" && (config.contact.pix_key || STORE.pixKey) && (
             <BlocoPix
@@ -185,6 +230,56 @@ export default function Checkout() {
               Voltar ao cardápio
             </Link>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!situacao.aberta) {
+    return (
+      <div className="checkout">
+        <div className="confirmacao fechado-card">
+          <div className="fechado-icone">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </div>
+          <h1>Estamos fechados</h1>
+          <p className="confirmacao-texto">{situacao.motivo}</p>
+          <p className="confirmacao-texto" style={{ marginTop: 8 }}>
+            Seu carrinho fica guardado — é só voltar quando a gente abrir.
+          </p>
+          <div className="confirmacao-acoes">
+            <Link href="/" className="btn-principal" style={{ maxWidth: 260 }}>
+              Voltar ao cardápio
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!situacao.aberta) {
+    return (
+      <div className="checkout">
+        <div className="fechado-card">
+          <div className="fechado-emoji">{"\u{1F634}"}</div>
+          <h1>Estamos fechados</h1>
+          <p className="fechado-motivo">{situacao.motivo}</p>
+          {situacao.reabre && (
+            <p className="fechado-reabre">
+              {"\u{1F552}"} {situacao.reabre}
+            </p>
+          )}
+          <p className="fechado-obs">
+            Seu carrinho fica guardado — é só voltar quando abrirmos que o
+            açaí está garantido. {"\u{1F49C}"}
+          </p>
+          <Link href="/" className="btn-principal" style={{ maxWidth: 260, margin: "18px auto 0" }}>
+            Voltar ao cardápio
+          </Link>
         </div>
       </div>
     );
@@ -224,7 +319,14 @@ export default function Checkout() {
               );
             })}
             <div className="resumo-item">
-              <span>Entrega{porBairro && bairroSelecionado ? ` (${bairroSelecionado.name})` : ""}</span>
+              <span>
+                Entrega
+                {porBairro && bairroSelecionado
+                  ? ` (${bairroSelecionado.name})`
+                  : porKm && kmInfo
+                    ? ` (~${kmInfo.km.toFixed(1).replace(".", ",")} km)`
+                    : ""}
+              </span>
               <span>
                 {porBairro && !bairroSelecionado
                   ? "escolha o bairro"
@@ -307,6 +409,26 @@ export default function Checkout() {
                 />
               )}
             </div>
+            {porKm && (
+              <div className="km-bloco">
+                <button
+                  className="btn-suave"
+                  onClick={calcularPorLocalizacao}
+                  disabled={calculandoKm}
+                >
+                  {calculandoKm
+                    ? "Calculando…"
+                    : `${"\u{1F4CD}"} Calcular entrega pela minha localização`}
+                </button>
+                {kmInfo && (
+                  <p className="km-resultado">
+                    Aprox. {kmInfo.km.toFixed(1).replace(".", ",")} km —
+                    entrega {formatBRL(kmInfo.taxa)}
+                  </p>
+                )}
+                {erroKm && <p className="km-erro">{erroKm}</p>}
+              </div>
+            )}
             <div className="campo">
               <label htmlFor="referencia">Ponto de referência (opcional)</label>
               <input
@@ -346,12 +468,7 @@ export default function Checkout() {
             )}
           </div>
 
-          {!situacao.aberta && (
-            <p className="aviso-bloqueio">
-              Estamos fechados no momento — {situacao.motivo}
-            </p>
-          )}
-          {situacao.aberta && abaixoDoMinimo && (
+          {abaixoDoMinimo && (
             <p className="aviso-bloqueio">
               Pedido mínimo de {formatBRL(minimo)} (faltam{" "}
               {formatBRL(minimo - subtotal)}).
@@ -365,8 +482,8 @@ export default function Checkout() {
             {enviando ? "Enviando pedido…" : "Finalizar pedido"}
           </button>
           <p className="aviso">
-            Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte.
-            Prefere pedir pelo WhatsApp?{" "}
+            {"Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte "}
+            {"\u{1F9CA}\u{1F7E3}"} Prefere pedir pelo WhatsApp?{" "}
             <a
               href={`https://wa.me/${STORE.whatsapp}`}
               target="_blank"
@@ -429,7 +546,7 @@ function BlocoPix({
 
   return (
     <div className="bloco-pix">
-      <h2>Pague agora com Pix</h2>
+      <h2>{"Pague agora com Pix \u26A1"}</h2>
       <p>
         Escaneie o QR code ou copie o código abaixo — o valor de{" "}
         <strong>{formatBRL(total)}</strong> já vai preenchido.

@@ -5,7 +5,12 @@ import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
 import { processarFoto } from "@/lib/image";
-import { CONFIG_PADRAO, type ConfigLoja } from "@/lib/settings-context";
+import {
+  CONFIG_PADRAO,
+  TEMA_PADRAO,
+  aplicarTema,
+  type ConfigLoja,
+} from "@/lib/settings-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
 import {
   listarPedidos,
@@ -205,7 +210,20 @@ function Painel() {
 
   return (
     <div className="admin">
-      <h1>Painel Duo</h1>
+      <div className="admin-head">
+        <h1>Painel Duo</h1>
+        <button
+          className="btn-som"
+          onClick={alternarNotif}
+          title={
+            notifOn
+              ? "Som de pedido novo: ligado (toque para desligar)"
+              : "Som de pedido novo: desligado (toque para ligar)"
+          }
+        >
+          {notifOn ? "\u{1F50A}" : "\u{1F507}"}
+        </button>
+      </div>
       <div className="admin-tabs">
         <button
           className={`admin-tab ${aba === "vender" ? "ativo" : ""}`}
@@ -242,13 +260,6 @@ function Painel() {
           onClick={() => setAba("vendedores")}
         >
           Vendedores
-        </button>
-        <button
-          className="admin-tab"
-          onClick={alternarNotif}
-          title="Som e notificação quando chegar pedido novo"
-        >
-          {notifOn ? "Som: ligado" : "Som: desligado"}
         </button>
         <button
           className="admin-tab"
@@ -1364,29 +1375,100 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
           </div>
         </div>
         <div className="pill-group" style={{ marginBottom: 12 }}>
-          <button
-            className={`pill ${!cfg.delivery.by_neighborhood ? "ativo" : ""}`}
-            onClick={() =>
-              setCfg({
-                ...cfg,
-                delivery: { ...cfg.delivery, by_neighborhood: false },
-              })
-            }
-          >
-            Taxa única
-          </button>
-          <button
-            className={`pill ${cfg.delivery.by_neighborhood ? "ativo" : ""}`}
-            onClick={() =>
-              setCfg({
-                ...cfg,
-                delivery: { ...cfg.delivery, by_neighborhood: true },
-              })
-            }
-          >
-            Taxa por bairro
-          </button>
+          {(
+            [
+              ["fixed", "Taxa única"],
+              ["neighborhood", "Por bairro"],
+              ["km", "Por km"],
+            ] as const
+          ).map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              className={`pill ${cfg.delivery.mode === valor ? "ativo" : ""}`}
+              onClick={() =>
+                setCfg({
+                  ...cfg,
+                  delivery: {
+                    ...cfg.delivery,
+                    mode: valor,
+                    by_neighborhood: valor === "neighborhood",
+                  },
+                })
+              }
+            >
+              {rotulo}
+            </button>
+          ))}
         </div>
+
+        {cfg.delivery.mode === "km" && (
+          <div className="km-config">
+            <div className="duas-colunas">
+              <div className="campo">
+                <label>Taxa base (R$)</label>
+                <input
+                  inputMode="decimal"
+                  value={String(cfg.delivery.km_base).replace(".", ",")}
+                  onChange={(e) =>
+                    setCfg({
+                      ...cfg,
+                      delivery: {
+                        ...cfg.delivery,
+                        km_base:
+                          parseFloat(e.target.value.replace(",", ".")) || 0,
+                      },
+                    })
+                  }
+                />
+              </div>
+              <div className="campo">
+                <label>Preço por km (R$)</label>
+                <input
+                  inputMode="decimal"
+                  value={String(cfg.delivery.km_price).replace(".", ",")}
+                  onChange={(e) =>
+                    setCfg({
+                      ...cfg,
+                      delivery: {
+                        ...cfg.delivery,
+                        km_price:
+                          parseFloat(e.target.value.replace(",", ".")) || 0,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <p className="aviso" style={{ textAlign: "left", marginBottom: 10 }}>
+              Ponto de partida: Rua José Marrocos, 145 — Pinto Madeira,
+              Crato/CE. Entrega = taxa base + (km × preço por km). O cliente
+              calcula pela localização dele; sem localização, vale a taxa
+              padrão acima. Exemplo com os valores atuais: 2 km ={" "}
+              {formatBRL(
+                cfg.delivery.km_base + 2 * cfg.delivery.km_price
+              )}
+              .
+            </p>
+            <button
+              className="btn-suave"
+              onClick={() => {
+                if (!("geolocation" in navigator)) return;
+                navigator.geolocation.getCurrentPosition((pos) => {
+                  setCfg({
+                    ...cfg,
+                    delivery: {
+                      ...cfg.delivery,
+                      store_lat: pos.coords.latitude,
+                      store_lng: pos.coords.longitude,
+                    },
+                  });
+                });
+              }}
+            >
+              {"\u{1F4CD}"} Estou na loja agora — usar minha localização como ponto
+            </button>
+          </div>
+        )}
         <button
           className="btn-principal"
           onClick={() => salvar("delivery", cfg.delivery, "Entrega salva")}
@@ -1394,7 +1476,7 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
           Salvar entrega
         </button>
 
-        {cfg.delivery.by_neighborhood && (
+        {cfg.delivery.mode === "neighborhood" && (
           <BairrosEditor
             bairros={bairros}
             onMudou={carregar}
@@ -1484,6 +1566,110 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
         >
           Salvar datas
         </button>
+      </div>
+
+      {/* -------- Aparência -------- */}
+      <div className="bloco">
+        <h2>Aparência do site</h2>
+        <p style={{ color: "var(--texto-suave)", fontSize: "0.88rem", marginBottom: 12 }}>
+          Toque em cada cor pra trocar. O site inteiro se adapta sozinho
+          (botões, fundos, letreiro, garrafinha do topo).
+        </p>
+        <div className="cores-grid">
+          {(
+            [
+              ["acai", "Fundo escuro (topo e rodapé)"],
+              ["roxo", "Cor da marca (botões e preços)"],
+              ["lilas", "Detalhes claros"],
+              ["creme", "Fundo da página"],
+              ["maracuja", "Destaque (botão amarelo)"],
+            ] as [keyof typeof TEMA_PADRAO, string][]
+          ).map(([chave, rotulo]) => (
+            <label className="cor-item" key={chave}>
+              <input
+                type="color"
+                value={cfg.theme[chave]}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    theme: { ...cfg.theme, [chave]: e.target.value },
+                  })
+                }
+              />
+              <span>{rotulo}</span>
+            </label>
+          ))}
+        </div>
+        <div className="admin-acoes">
+          <button
+            className="btn-principal"
+            style={{ flex: 1 }}
+            onClick={() => salvar("theme", cfg.theme, "Cores salvas")}
+          >
+            Salvar cores
+          </button>
+          <button
+            className="btn-suave"
+            onClick={() => setCfg({ ...cfg, theme: { ...TEMA_PADRAO } })}
+          >
+            Restaurar padrão
+          </button>
+        </div>
+        <p style={{ color: "var(--texto-suave)", fontSize: "0.8rem", marginTop: 10 }}>
+          Depois de salvar, recarregue o site pra ver o resultado. Se salvar
+          "Restaurar padrão", volta ao roxo original da Duo.
+        </p>
+      </div>
+
+      {/* -------- Aparência -------- */}
+      <div className="bloco">
+        <h2>Aparência (cores do site)</h2>
+        <div className="cores-grid">
+          {(
+            [
+              ["roxo", "Roxo principal"],
+              ["acai", "Açaí escuro (fundos)"],
+              ["maracuja", "Amarelo destaque"],
+              ["creme", "Fundo claro"],
+              ["lilas", "Lilás (detalhes)"],
+            ] as const
+          ).map(([chave, rotulo]) => (
+            <label className="cor-item" key={chave}>
+              <input
+                type="color"
+                value={cfg.theme[chave]}
+                onChange={(e) => {
+                  const novoTema = { ...cfg.theme, [chave]: e.target.value };
+                  setCfg({ ...cfg, theme: novoTema });
+                  aplicarTema(novoTema); // prévia ao vivo no próprio painel
+                }}
+              />
+              <span>{rotulo}</span>
+            </label>
+          ))}
+        </div>
+        <div className="admin-acoes">
+          <button
+            className="btn-principal"
+            style={{ flex: 1 }}
+            onClick={() => salvar("theme", cfg.theme, "Cores salvas")}
+          >
+            Salvar cores
+          </button>
+          <button
+            className="btn-suave"
+            onClick={() => {
+              const padrao = { ...TEMA_PADRAO };
+              setCfg({ ...cfg, theme: padrao });
+              aplicarTema(padrao);
+            }}
+          >
+            Restaurar padrão
+          </button>
+        </div>
+        <p className="aviso" style={{ marginTop: 10 }}>
+          A prévia muda aqui na hora; clientes veem depois de salvar.
+        </p>
       </div>
 
       {/* -------- Contato e Pix -------- */}

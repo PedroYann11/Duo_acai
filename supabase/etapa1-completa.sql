@@ -78,7 +78,8 @@ insert into store_settings (key, value) values
     "6": {"closed": false, "open": "10:00", "close": "22:00"}
   }'),
   ('special_dates', '[]'),
-  ('contact', '{"whatsapp": "5588992615069", "pix_key": "07228088360", "pix_name": "DUO ACAI", "pix_city": "CRATO"}')
+  ('contact', '{"whatsapp": "5588992615069", "pix_key": "07228088360", "pix_name": "DUO ACAI", "pix_city": "CRATO"}'),
+  ('theme', '{"acai": "#2e0b26", "roxo": "#61174c", "lilas": "#c7a3dc", "creme": "#f6ecda", "maracuja": "#f2c230"}')
 on conflict (key) do nothing;
 
 alter table store_settings enable row level security;

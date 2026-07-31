@@ -1349,3 +1349,170 @@ a {
   font-size: 1rem;
   margin-bottom: 8px;
 }
+
+/* ---------- Tela de loja fechada ---------- */
+.fechado-icone {
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: var(--lilas);
+  color: var(--acai);
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Editor de cores ---------- */
+.cores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.cor-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+.cor-item input[type="color"] {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* ---------- Tela de loja fechada + calculadora de km ---------- */
+.fechado-card {
+  background: linear-gradient(160deg, var(--acai) 0%, var(--roxo) 100%);
+  color: var(--creme);
+  border-radius: var(--raio);
+  padding: 46px 26px;
+  text-align: center;
+  box-shadow: var(--sombra);
+  margin-top: 30px;
+}
+
+.fechado-emoji {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.fechado-card h1 {
+  font-family: var(--fonte-display);
+  font-size: 1.9rem;
+}
+
+.fechado-motivo {
+  margin-top: 10px;
+  font-size: 1.02rem;
+  color: rgba(246, 236, 218, 0.9);
+}
+
+.fechado-reabre {
+  margin-top: 14px;
+  display: inline-block;
+  background: var(--maracuja);
+  color: var(--acai);
+  font-weight: 700;
+  padding: 10px 20px;
+  border-radius: 999px;
+}
+
+.fechado-obs {
+  margin: 18px auto 0;
+  max-width: 380px;
+  font-size: 0.9rem;
+  color: rgba(246, 236, 218, 0.75);
+  line-height: 1.5;
+}
+
+.fechado-card .btn-principal {
+  display: block;
+  background: transparent;
+  border: 1.5px solid rgba(199, 163, 220, 0.5);
+  color: var(--creme);
+}
+
+.km-bloco {
+  margin-bottom: 14px;
+}
+
+.km-resultado {
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--roxo);
+  font-size: 0.95rem;
+}
+
+.km-erro {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #a05f16;
+}
+
+/* ---------- Cabeçalho do admin com botão de som ---------- */
+.admin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.admin-head h1 {
+  margin-bottom: 0;
+}
+
+.btn-som {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--branco);
+  box-shadow: var(--sombra);
+  font-size: 1.25rem;
+  display: grid;
+  place-items: center;
+}
+
+/* ---------- Configuração por km e cores ---------- */
+.km-config {
+  background: var(--creme);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.cores-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.cor-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cor-item input[type="color"] {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
