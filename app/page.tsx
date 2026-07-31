@@ -25,7 +25,7 @@ export default function Home() {
       <main className="menu container" id="cardapio">
         <h2 className="menu-title">Escolha o seu Duo</h2>
         <p className="menu-sub">
-          Todos por R$ 18,90 · {STORE.openHours}
+          A partir de R$ 18,90 · {STORE.openHours}
         </p>
         <div className="grid">
           {PRODUCTS.map((p) => (
