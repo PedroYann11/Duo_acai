@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { STORE, formatBRL, type Product } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
+import { useSettings } from "@/lib/settings-context";
 import { useCart } from "@/lib/cart";
 
 /* ---------- Header ---------- */
@@ -33,7 +34,11 @@ export function Header() {
 /* ---------- Drawer do carrinho ---------- */
 function CartDrawer({ onClose }: { onClose: () => void }) {
   const PRODUCTS = useProducts();
-  const { items, setQty, subtotal, total } = useCart();
+  const { config, bairros } = useSettings();
+  const { items, setQty, subtotal } = useCart();
+  const porBairro = config.delivery.by_neighborhood && bairros.length > 0;
+  const taxa = config.delivery.fee;
+  const total = subtotal + (porBairro ? 0 : taxa);
 
   return (
     <>
@@ -92,10 +97,10 @@ function CartDrawer({ onClose }: { onClose: () => void }) {
             </div>
             <div className="linha-total">
               <span>Entrega</span>
-              <span>{formatBRL(STORE.deliveryFee)}</span>
+              <span>{porBairro ? "por bairro" : formatBRL(taxa)}</span>
             </div>
             <div className="linha-total forte">
-              <span>Total</span>
+              <span>{porBairro ? "Subtotal" : "Total"}</span>
               <span>{formatBRL(total)}</span>
             </div>
             <Link href="/checkout" className="btn-principal" onClick={onClose}>

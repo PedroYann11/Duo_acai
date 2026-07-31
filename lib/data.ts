@@ -412,3 +412,132 @@ export async function alternarDisponibilidade(
   const { error } = await sb.from("products").update({ available }).eq("id", id);
   if (error) throw new Error("Não foi possível atualizar");
 }
+
+
+// ---------- criar / remover / reordenar / foto (Sprint 2) ----------
+
+function slugificar(nome: string): string {
+  return nome
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "produto";
+}
+
+export async function criarProduto(campos: {
+  name: string;
+  description: string;
+  price: number;
+  image_url: string;
+}): Promise<void> {
+  const sb = getSupabase();
+  const { data: maiores } = await sb
+    .from("products")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  const ordem = (maiores?.[0]?.sort_order ?? 0) + 1;
+
+  let slug = slugificar(campos.name);
+  let { error } = await sb
+    .from("products")
+    .insert({ ...campos, slug, sort_order: ordem });
+  if (error && (error as any).code === "23505") {
+    // nome/slug repetido: tenta com sufixo único
+    slug = `${slug}-${Date.now().toString(36)}`;
+    const r2 = await sb
+      .from("products")
+      .insert({ ...campos, slug, sort_order: ordem });
+    error = r2.error;
+  }
+  if (error) throw new Error("Não foi possível criar o produto");
+}
+
+export async function removerProduto(id: string): Promise<void> {
+  // remoção "suave": sai do site, mas o histórico de vendas fica intacto
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("products")
+    .update({ active: false })
+    .eq("id", id);
+  if (error) throw new Error("Não foi possível remover");
+}
+
+export async function trocarOrdem(
+  a: { id: string; sort_order: number },
+  b: { id: string; sort_order: number }
+): Promise<void> {
+  const sb = getSupabase();
+  await sb.from("products").update({ sort_order: b.sort_order }).eq("id", a.id);
+  await sb.from("products").update({ sort_order: a.sort_order }).eq("id", b.id);
+}
+
+export async function enviarFotoProduto(
+  blob: Blob,
+  slugBase: string
+): Promise<string> {
+  const sb = getSupabase();
+  const caminho = `${slugificar(slugBase)}-${Date.now().toString(36)}.jpg`;
+  const { error } = await sb.storage
+    .from("product-images")
+    .upload(caminho, blob, { contentType: "image/jpeg", upsert: true });
+  if (error) throw new Error("Falha no envio da foto");
+  const { data } = sb.storage.from("product-images").getPublicUrl(caminho);
+  return data.publicUrl;
+}
+
+export async function atualizarFotoProduto(
+  id: string,
+  imageUrl: string
+): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("products")
+    .update({ image_url: imageUrl })
+    .eq("id", id);
+  if (error) throw new Error("Não foi possível salvar a foto");
+}
+
+
+// ---------- configurações da loja e bairros (aba Loja) ----------
+
+export async function salvarConfig(key: string, value: unknown): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("store_settings")
+    .upsert({ key, value }, { onConflict: "key" });
+  if (error) throw new Error("Não foi possível salvar");
+}
+
+export type BairroAdmin = {
+  id: string;
+  name: string;
+  fee: number;
+  active: boolean;
+};
+
+export async function listarBairrosAdmin(): Promise<BairroAdmin[]> {
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("neighborhoods")
+    .select("id, name, fee, active")
+    .order("name");
+  if (error || !data) return [];
+  return data.map((b: any) => ({ ...b, fee: Number(b.fee) }));
+}
+
+export async function criarBairro(name: string, fee: number): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb
+    .from("neighborhoods")
+    .insert({ name: name.trim(), fee });
+  if (error) throw new Error("Não foi possível criar (nome repetido?)");
+}
+
+export async function removerBairro(id: string): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.from("neighborhoods").delete().eq("id", id);
+  if (error) throw new Error("Não foi possível remover");
+}

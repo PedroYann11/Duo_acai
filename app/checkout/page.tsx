@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
+import {
+  situacaoDaLoja,
+  useSettings,
+} from "@/lib/settings-context";
 import { useCart } from "@/lib/cart";
 import { criarPedidoSite } from "@/lib/data";
 import { gerarPixCopiaECola } from "@/lib/pix";
@@ -13,7 +17,10 @@ type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
 
 export default function Checkout() {
   const PRODUCTS = useProducts();
-  const { items, subtotal, total, clear } = useCart();
+  const { config, bairros } = useSettings();
+  const { items, subtotal, clear } = useCart();
+  const situacao = situacaoDaLoja(config);
+  const porBairro = config.delivery.by_neighborhood && bairros.length > 0;
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [rua, setRua] = useState("");
@@ -28,13 +35,26 @@ export default function Checkout() {
     total: number;
   } | null>(null);
 
+  const bairroSelecionado = porBairro
+    ? bairros.find((b) => b.name === bairro) || null
+    : null;
+  const taxaEntrega = porBairro
+    ? bairroSelecionado?.fee ?? 0
+    : config.delivery.fee;
+  const total = subtotal + taxaEntrega;
+  const minimo = config.delivery.min_order || 0;
+  const abaixoDoMinimo = minimo > 0 && subtotal < minimo;
+
   const valido =
     items.length > 0 &&
+    situacao.aberta &&
+    !abaixoDoMinimo &&
     nome.trim() &&
     telefone.trim().replace(/\D/g, "").length >= 10 &&
     rua.trim() &&
     numero.trim() &&
-    bairro.trim();
+    bairro.trim() &&
+    (!porBairro || Boolean(bairroSelecionado));
 
   const finalizarPedido = async () => {
     if (!valido || enviando) return;
@@ -72,7 +92,7 @@ export default function Checkout() {
         change_for:
           pagamento === "Dinheiro" && troco.trim() ? troco.trim() : null,
         subtotal,
-        delivery_fee: STORE.deliveryFee,
+        delivery_fee: taxaEntrega,
         total,
         itens: itensPedido,
       });
@@ -101,7 +121,7 @@ export default function Checkout() {
       linhas,
       ``,
       `Subtotal: ${formatBRL(subtotal)}`,
-      `Entrega: ${formatBRL(STORE.deliveryFee)}`,
+      `Entrega: ${formatBRL(taxaEntrega)}`,
       `*Total: ${formatBRL(total)}*`,
       ``,
       `*Cliente:* ${nome.trim()}`,
@@ -121,7 +141,7 @@ export default function Checkout() {
     // location.href não sofre bloqueio de popup no celular;
     // o carrinho é mantido para o cliente poder tentar de novo se voltar.
     setEnviando(false);
-    window.location.href = `https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(msg)}`;
+    window.location.href = `https://wa.me/${config.contact.whatsapp || STORE.whatsapp}?text=${encodeURIComponent(msg)}`;
   };
 
   if (confirmado) {
@@ -143,8 +163,12 @@ export default function Checkout() {
               : ""}
             ). Avisamos no seu WhatsApp quando sair pra entrega!
           </p>
-          {pagamento === "Pix" && STORE.pixKey && (
-            <BlocoPix total={confirmado.total} numero={confirmado.numero} />
+          {pagamento === "Pix" && (config.contact.pix_key || STORE.pixKey) && (
+            <BlocoPix
+              total={confirmado.total}
+              numero={confirmado.numero}
+              pix={config.contact}
+            />
           )}
           <div className="confirmacao-acoes">
             <a
@@ -200,8 +224,12 @@ export default function Checkout() {
               );
             })}
             <div className="resumo-item">
-              <span>Entrega</span>
-              <span>{formatBRL(STORE.deliveryFee)}</span>
+              <span>Entrega{porBairro && bairroSelecionado ? ` (${bairroSelecionado.name})` : ""}</span>
+              <span>
+                {porBairro && !bairroSelecionado
+                  ? "escolha o bairro"
+                  : formatBRL(taxaEntrega)}
+              </span>
             </div>
             <div className="resumo-item" style={{ fontWeight: 700 }}>
               <span>Total</span>
@@ -256,12 +284,28 @@ export default function Checkout() {
             </div>
             <div className="campo">
               <label htmlFor="bairro">Bairro *</label>
-              <input
-                id="bairro"
-                value={bairro}
-                onChange={(e) => setBairro(e.target.value)}
-                placeholder="Bairro"
-              />
+              {porBairro ? (
+                <select
+                  id="bairro"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  className="select-bairro"
+                >
+                  <option value="">Escolha o bairro…</option>
+                  {bairros.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name} — entrega {formatBRL(b.fee)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="bairro"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  placeholder="Bairro"
+                />
+              )}
             </div>
             <div className="campo">
               <label htmlFor="referencia">Ponto de referência (opcional)</label>
@@ -302,6 +346,17 @@ export default function Checkout() {
             )}
           </div>
 
+          {!situacao.aberta && (
+            <p className="aviso-bloqueio">
+              Estamos fechados no momento — {situacao.motivo}
+            </p>
+          )}
+          {situacao.aberta && abaixoDoMinimo && (
+            <p className="aviso-bloqueio">
+              Pedido mínimo de {formatBRL(minimo)} (faltam{" "}
+              {formatBRL(minimo - subtotal)}).
+            </p>
+          )}
           <button
             className="btn-principal"
             onClick={finalizarPedido}
@@ -330,14 +385,22 @@ export default function Checkout() {
 
 
 /* ---------- Bloco Pix: QR code + copia e cola ---------- */
-function BlocoPix({ total, numero }: { total: number; numero: string }) {
+function BlocoPix({
+  total,
+  numero,
+  pix,
+}: {
+  total: number;
+  numero: string;
+  pix: { pix_key: string; pix_name: string; pix_city: string };
+}) {
   const [qr, setQr] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
 
   const codigo = gerarPixCopiaECola({
-    chave: STORE.pixKey,
-    nome: STORE.pixName,
-    cidade: STORE.pixCity,
+    chave: pix.pix_key || STORE.pixKey,
+    nome: pix.pix_name || STORE.pixName,
+    cidade: pix.pix_city || STORE.pixCity,
     valor: total,
     txid: `DUO${numero}`,
   });

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
+import { processarFoto } from "@/lib/image";
+import { CONFIG_PADRAO, type ConfigLoja } from "@/lib/settings-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
 import {
   listarPedidos,
@@ -15,7 +17,17 @@ import {
   listarProdutosAdmin,
   salvarProduto,
   alternarDisponibilidade,
+  criarProduto,
+  removerProduto,
+  trocarOrdem,
+  enviarFotoProduto,
+  atualizarFotoProduto,
   type ProdutoAdmin,
+  salvarConfig,
+  listarBairrosAdmin,
+  criarBairro,
+  removerBairro,
+  type BairroAdmin,
   atualizarStatus,
   apagarPedido,
   aoChegarPedido,
@@ -131,7 +143,7 @@ export default function Admin() {
 
 function Painel() {
   const [aba, setAba] = useState<
-    "vender" | "dashboard" | "pedidos" | "vendedores" | "produtos"
+    "vender" | "dashboard" | "pedidos" | "vendedores" | "produtos" | "loja"
   >("vender");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [toast, setToast] = useState("");
@@ -220,6 +232,12 @@ function Painel() {
           Produtos
         </button>
         <button
+          className={`admin-tab ${aba === "loja" ? "ativo" : ""}`}
+          onClick={() => setAba("loja")}
+        >
+          Loja
+        </button>
+        <button
           className={`admin-tab ${aba === "vendedores" ? "ativo" : ""}`}
           onClick={() => setAba("vendedores")}
         >
@@ -261,6 +279,7 @@ function Painel() {
       )}
       {aba === "vendedores" && <Vendedores avisar={avisar} />}
       {aba === "produtos" && <Produtos avisar={avisar} />}
+      {aba === "loja" && <Loja avisar={avisar} />}
 
       {toast && <div className="toast-ok">{toast}</div>}
       {!supabaseOn && (
@@ -786,6 +805,7 @@ function Produtos({ avisar }: { avisar: (msg: string) => void }) {
   const [lista, setLista] = useState<ProdutoAdmin[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
 
   const carregar = async () => {
     setLista(await listarProdutosAdmin());
@@ -806,6 +826,24 @@ function Produtos({ avisar }: { avisar: (msg: string) => void }) {
 
   return (
     <>
+      <button
+        className="btn-principal"
+        style={{ marginBottom: 18 }}
+        onClick={() => setCriando(!criando)}
+      >
+        {criando ? "Fechar" : "+ Novo produto"}
+      </button>
+
+      {criando && (
+        <NovoProduto
+          avisar={avisar}
+          onCriado={() => {
+            setCriando(false);
+            carregar();
+          }}
+        />
+      )}
+
       <div className="bloco">
         <h2>Cardápio</h2>
         {carregando && (
@@ -820,10 +858,12 @@ function Produtos({ avisar }: { avisar: (msg: string) => void }) {
             o cardápio.
           </p>
         )}
-        {lista.map((p) => (
+        {lista.map((p, i) => (
           <CartaoProduto
             key={p.id}
             produto={p}
+            anterior={i > 0 ? lista[i - 1] : null}
+            proximo={i < lista.length - 1 ? lista[i + 1] : null}
             aberto={editando === p.id}
             onEditar={() =>
               setEditando(editando === p.id ? null : p.id)
@@ -836,8 +876,9 @@ function Produtos({ avisar }: { avisar: (msg: string) => void }) {
         ))}
       </div>
       <p className="aviso-local">
-        As mudanças valem na hora pra quem abrir o site. Adicionar produto
-        novo com foto chega na próxima atualização do painel.
+        As mudanças valem na hora pra quem abrir o site. Ao remover um
+        produto, as vendas antigas dele continuam no histórico e no
+        dashboard.
       </p>
     </>
   );
@@ -845,17 +886,64 @@ function Produtos({ avisar }: { avisar: (msg: string) => void }) {
 
 function CartaoProduto({
   produto,
+  anterior,
+  proximo,
   aberto,
   onEditar,
   onMudou,
   avisar,
 }: {
   produto: ProdutoAdmin;
+  anterior: ProdutoAdmin | null;
+  proximo: ProdutoAdmin | null;
   aberto: boolean;
   onEditar: () => void;
   onMudou: () => void;
   avisar: (msg: string) => void;
 }) {
+  const fotoRef = useRef<HTMLInputElement>(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+
+  const trocarFoto = async (file: File) => {
+    setEnviandoFoto(true);
+    try {
+      const blob = await processarFoto(file);
+      const url = await enviarFotoProduto(blob, produto.slug);
+      await atualizarFotoProduto(produto.id, url);
+      avisar("Foto atualizada");
+      onMudou();
+    } catch (e: any) {
+      avisar(e.message || "Erro na foto");
+    } finally {
+      setEnviandoFoto(false);
+    }
+  };
+
+  const mover = async (direcao: -1 | 1) => {
+    const vizinho = direcao === -1 ? anterior : proximo;
+    if (!vizinho) return;
+    await trocarOrdem(
+      { id: produto.id, sort_order: produto.sort_order },
+      { id: vizinho.id, sort_order: vizinho.sort_order }
+    );
+    onMudou();
+  };
+
+  const remover = async () => {
+    if (
+      !confirm(
+        `Remover "${produto.name}" do cardápio? As vendas antigas continuam no histórico.`
+      )
+    )
+      return;
+    try {
+      await removerProduto(produto.id);
+      avisar("Produto removido");
+      onMudou();
+    } catch {
+      avisar("Erro ao remover");
+    }
+  };
   const [nome, setNome] = useState(produto.name);
   const [descricao, setDescricao] = useState(produto.description);
   const [preco, setPreco] = useState(produto.price.toFixed(2).replace(".", ","));
@@ -901,7 +989,33 @@ function CartaoProduto({
   return (
     <div className="produto-admin">
       <div className="produto-admin-linha">
-        <img src={produto.image_url} alt={produto.name} />
+        <div className="ordem-setas">
+          <button onClick={() => mover(-1)} disabled={!anterior} aria-label="Subir">
+            ▲
+          </button>
+          <button onClick={() => mover(1)} disabled={!proximo} aria-label="Descer">
+            ▼
+          </button>
+        </div>
+        <button
+          className="foto-botao"
+          onClick={() => fotoRef.current?.click()}
+          title="Toque para trocar a foto"
+        >
+          <img src={produto.image_url} alt={produto.name} />
+          <span>{enviandoFoto ? "…" : "trocar"}</span>
+        </button>
+        <input
+          ref={fotoRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) trocarFoto(f);
+            e.target.value = "";
+          }}
+        />
         <div className="produto-admin-info">
           <strong>{produto.name}</strong>
           <span>{formatBRL(produto.price)}</span>
@@ -940,11 +1054,629 @@ function CartaoProduto({
               onChange={(e) => setPreco(e.target.value)}
             />
           </div>
-          <button className="btn-principal" onClick={salvar}>
-            {salvando ? "Salvando…" : "Salvar alterações"}
-          </button>
+          <div className="admin-acoes">
+            <button className="btn-principal" onClick={salvar} style={{ flex: 1 }}>
+              {salvando ? "Salvando…" : "Salvar alterações"}
+            </button>
+            <button className="btn-suave" style={{ color: "#b23b3b" }} onClick={remover}>
+              Remover
+            </button>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/* ---- Novo produto ---- */
+
+function NovoProduto({
+  avisar,
+  onCriado,
+}: {
+  avisar: (msg: string) => void;
+  onCriado: () => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [preco, setPreco] = useState("");
+  const [foto, setFoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const fotoRef = useRef<HTMLInputElement>(null);
+
+  const escolherFoto = (f: File) => {
+    setFoto(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const criar = async () => {
+    const valor = parseFloat(preco.replace(",", "."));
+    if (!nome.trim() || isNaN(valor) || valor <= 0) {
+      avisar("Preencha nome e preço");
+      return;
+    }
+    if (!foto) {
+      avisar("Escolha uma foto");
+      return;
+    }
+    setSalvando(true);
+    try {
+      const blob = await processarFoto(foto);
+      const url = await enviarFotoProduto(blob, nome);
+      await criarProduto({
+        name: nome.trim(),
+        description: descricao.trim(),
+        price: valor,
+        image_url: url,
+      });
+      avisar("Produto criado");
+      onCriado();
+    } catch (e: any) {
+      avisar(e.message || "Erro ao criar");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="bloco">
+      <h2>Novo produto</h2>
+      <div className="novo-produto-grid">
+        <button
+          className="foto-escolher"
+          onClick={() => fotoRef.current?.click()}
+        >
+          {preview ? (
+            <img src={preview} alt="Prévia" />
+          ) : (
+            <span>
+              Toque para
+              <br />
+              escolher a foto
+            </span>
+          )}
+        </button>
+        <input
+          ref={fotoRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) escolherFoto(f);
+            e.target.value = "";
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div className="campo">
+            <label>Nome</label>
+            <input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Duo Morango"
+            />
+          </div>
+          <div className="campo">
+            <label>Descrição</label>
+            <textarea
+              rows={2}
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Açaí com creme de morango fresquinho."
+            />
+          </div>
+          <div className="campo" style={{ maxWidth: 160 }}>
+            <label>Preço (R$)</label>
+            <input
+              inputMode="decimal"
+              value={preco}
+              onChange={(e) => setPreco(e.target.value)}
+              placeholder="19,90"
+            />
+          </div>
+        </div>
+      </div>
+      <button className="btn-principal" onClick={criar}>
+        {salvando ? "Criando…" : "Adicionar ao cardápio"}
+      </button>
+      <p className="aviso" style={{ marginTop: 10 }}>
+        A foto é cortada e padronizada automaticamente (640×800). Pode mandar
+        direto da galeria do celular.
+      </p>
+    </div>
+  );
+}
+
+
+/* ================= Loja (configurações) ================= */
+
+const DIAS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+
+function Loja({ avisar }: { avisar: (msg: string) => void }) {
+  const [cfg, setCfg] = useState<ConfigLoja>(CONFIG_PADRAO);
+  const [bairros, setBairros] = useState<BairroAdmin[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  const carregar = async () => {
+    try {
+      const sb = getSupabase();
+      const [{ data }, listaBairros] = await Promise.all([
+        sb.from("store_settings").select("key, value"),
+        listarBairrosAdmin(),
+      ]);
+      if (data) {
+        const novo: any = { ...CONFIG_PADRAO };
+        for (const linha of data) {
+          if (linha.key === "special_dates") novo[linha.key] = linha.value;
+          else novo[linha.key] = { ...(novo as any)[linha.key], ...linha.value };
+        }
+        setCfg(novo as ConfigLoja);
+      }
+      setBairros(listaBairros);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  const salvar = async (key: keyof ConfigLoja, valor: unknown, msg: string) => {
+    try {
+      await salvarConfig(key, valor);
+      avisar(msg);
+    } catch {
+      avisar("Erro ao salvar");
+    }
+  };
+
+  if (!supabaseOn)
+    return (
+      <p className="aviso-local">
+        As configurações da loja precisam do Supabase conectado.
+      </p>
+    );
+  if (carregando)
+    return <p style={{ color: "var(--texto-suave)" }}>Carregando…</p>;
+
+  return (
+    <>
+      {/* -------- Status da loja -------- */}
+      <div className="bloco">
+        <h2>Status da loja</h2>
+        <div className="pill-group" style={{ marginBottom: 12 }}>
+          <button
+            className={`pill ${cfg.store_open.open ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, store_open: { ...cfg.store_open, open: true } })
+            }
+          >
+            Aberta
+          </button>
+          <button
+            className={`pill ${!cfg.store_open.open ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, store_open: { ...cfg.store_open, open: false } })
+            }
+          >
+            Fechada (modo férias)
+          </button>
+        </div>
+        {!cfg.store_open.open && (
+          <div className="campo">
+            <label>Mensagem para os clientes</label>
+            <input
+              value={cfg.store_open.message}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  store_open: { ...cfg.store_open, message: e.target.value },
+                })
+              }
+              placeholder="Voltamos dia 05/08!"
+            />
+          </div>
+        )}
+        <button
+          className="btn-principal"
+          onClick={() => salvar("store_open", cfg.store_open, "Status salvo")}
+        >
+          Salvar status
+        </button>
+      </div>
+
+      {/* -------- Banner -------- */}
+      <div className="bloco">
+        <h2>Banner promocional</h2>
+        <div className="pill-group" style={{ marginBottom: 12 }}>
+          <button
+            className={`pill ${cfg.banner.active ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, banner: { ...cfg.banner, active: true } })
+            }
+          >
+            Ligado
+          </button>
+          <button
+            className={`pill ${!cfg.banner.active ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, banner: { ...cfg.banner, active: false } })
+            }
+          >
+            Desligado
+          </button>
+        </div>
+        <div className="campo">
+          <label>Texto (aparece numa faixa amarela no topo do site)</label>
+          <input
+            value={cfg.banner.text}
+            onChange={(e) =>
+              setCfg({ ...cfg, banner: { ...cfg.banner, text: e.target.value } })
+            }
+            placeholder="Hoje: 2 garrafas por R$ 35!"
+          />
+        </div>
+        <button
+          className="btn-principal"
+          onClick={() => salvar("banner", cfg.banner, "Banner salvo")}
+        >
+          Salvar banner
+        </button>
+      </div>
+
+      {/* -------- Entrega -------- */}
+      <div className="bloco">
+        <h2>Entrega</h2>
+        <div className="duas-colunas">
+          <div className="campo">
+            <label>Taxa padrão (R$)</label>
+            <input
+              inputMode="decimal"
+              value={String(cfg.delivery.fee).replace(".", ",")}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  delivery: {
+                    ...cfg.delivery,
+                    fee: parseFloat(e.target.value.replace(",", ".")) || 0,
+                  },
+                })
+              }
+            />
+          </div>
+          <div className="campo">
+            <label>Pedido mínimo (R$, 0 = sem mínimo)</label>
+            <input
+              inputMode="decimal"
+              value={String(cfg.delivery.min_order).replace(".", ",")}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  delivery: {
+                    ...cfg.delivery,
+                    min_order: parseFloat(e.target.value.replace(",", ".")) || 0,
+                  },
+                })
+              }
+            />
+          </div>
+        </div>
+        <div className="pill-group" style={{ marginBottom: 12 }}>
+          <button
+            className={`pill ${!cfg.delivery.by_neighborhood ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({
+                ...cfg,
+                delivery: { ...cfg.delivery, by_neighborhood: false },
+              })
+            }
+          >
+            Taxa única
+          </button>
+          <button
+            className={`pill ${cfg.delivery.by_neighborhood ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({
+                ...cfg,
+                delivery: { ...cfg.delivery, by_neighborhood: true },
+              })
+            }
+          >
+            Taxa por bairro
+          </button>
+        </div>
+        <button
+          className="btn-principal"
+          onClick={() => salvar("delivery", cfg.delivery, "Entrega salva")}
+        >
+          Salvar entrega
+        </button>
+
+        {cfg.delivery.by_neighborhood && (
+          <BairrosEditor
+            bairros={bairros}
+            onMudou={carregar}
+            avisar={avisar}
+          />
+        )}
+      </div>
+
+      {/* -------- Horários -------- */}
+      <div className="bloco">
+        <h2>Horários de funcionamento</h2>
+        {DIAS.map((nome, i) => {
+          const d = cfg.hours[String(i)];
+          return (
+            <div className="linha-horario" key={i}>
+              <button
+                className={`pill ${!d.closed ? "ativo" : ""}`}
+                onClick={() =>
+                  setCfg({
+                    ...cfg,
+                    hours: {
+                      ...cfg.hours,
+                      [String(i)]: { ...d, closed: !d.closed },
+                    },
+                  })
+                }
+              >
+                {nome.slice(0, 3)}
+              </button>
+              {d.closed ? (
+                <span className="fechado-txt">fechado</span>
+              ) : (
+                <>
+                  <input
+                    type="time"
+                    value={d.open}
+                    onChange={(e) =>
+                      setCfg({
+                        ...cfg,
+                        hours: {
+                          ...cfg.hours,
+                          [String(i)]: { ...d, open: e.target.value },
+                        },
+                      })
+                    }
+                  />
+                  <span>às</span>
+                  <input
+                    type="time"
+                    value={d.close}
+                    onChange={(e) =>
+                      setCfg({
+                        ...cfg,
+                        hours: {
+                          ...cfg.hours,
+                          [String(i)]: { ...d, close: e.target.value },
+                        },
+                      })
+                    }
+                  />
+                </>
+              )}
+            </div>
+          );
+        })}
+        <button
+          className="btn-principal"
+          style={{ marginTop: 10 }}
+          onClick={() => salvar("hours", cfg.hours, "Horários salvos")}
+        >
+          Salvar horários
+        </button>
+      </div>
+
+      {/* -------- Datas especiais -------- */}
+      <div className="bloco">
+        <h2>Datas especiais (fechado)</h2>
+        <DatasEspeciais
+          datas={cfg.special_dates}
+          onChange={(novas) => setCfg({ ...cfg, special_dates: novas })}
+        />
+        <button
+          className="btn-principal"
+          onClick={() =>
+            salvar("special_dates", cfg.special_dates, "Datas salvas")
+          }
+        >
+          Salvar datas
+        </button>
+      </div>
+
+      {/* -------- Contato e Pix -------- */}
+      <div className="bloco">
+        <h2>Contato e Pix</h2>
+        <div className="campo">
+          <label>WhatsApp da loja (55 + DDD + número)</label>
+          <input
+            value={cfg.contact.whatsapp}
+            onChange={(e) =>
+              setCfg({
+                ...cfg,
+                contact: { ...cfg.contact, whatsapp: e.target.value },
+              })
+            }
+          />
+        </div>
+        <div className="campo">
+          <label>Chave Pix</label>
+          <input
+            value={cfg.contact.pix_key}
+            onChange={(e) =>
+              setCfg({
+                ...cfg,
+                contact: { ...cfg.contact, pix_key: e.target.value },
+              })
+            }
+          />
+        </div>
+        <div className="duas-colunas">
+          <div className="campo">
+            <label>Nome do recebedor</label>
+            <input
+              value={cfg.contact.pix_name}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  contact: { ...cfg.contact, pix_name: e.target.value },
+                })
+              }
+            />
+          </div>
+          <div className="campo">
+            <label>Cidade</label>
+            <input
+              value={cfg.contact.pix_city}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  contact: { ...cfg.contact, pix_city: e.target.value },
+                })
+              }
+            />
+          </div>
+        </div>
+        <button
+          className="btn-principal"
+          onClick={() => salvar("contact", cfg.contact, "Contato salvo")}
+        >
+          Salvar contato e Pix
+        </button>
+      </div>
+    </>
+  );
+}
+
+function BairrosEditor({
+  bairros,
+  onMudou,
+  avisar,
+}: {
+  bairros: BairroAdmin[];
+  onMudou: () => void;
+  avisar: (msg: string) => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [taxa, setTaxa] = useState("");
+
+  const adicionar = async () => {
+    const valor = parseFloat(taxa.replace(",", "."));
+    if (!nome.trim() || isNaN(valor) || valor < 0) {
+      avisar("Preencha bairro e taxa");
+      return;
+    }
+    try {
+      await criarBairro(nome, valor);
+      setNome("");
+      setTaxa("");
+      onMudou();
+      avisar("Bairro adicionado");
+    } catch (e: any) {
+      avisar(e.message);
+    }
+  };
+
+  return (
+    <div className="bairros-editor">
+      <h3>Bairros atendidos</h3>
+      {bairros.map((b) => (
+        <div className="hist-item" key={b.id}>
+          <span>
+            {b.name} — {formatBRL(b.fee)}
+          </span>
+          <button
+            className="btn-x"
+            onClick={async () => {
+              if (confirm(`Remover ${b.name}?`)) {
+                await removerBairro(b.id);
+                onMudou();
+              }
+            }}
+          >
+            remover
+          </button>
+        </div>
+      ))}
+      <div className="duas-colunas" style={{ marginTop: 10 }}>
+        <div className="campo">
+          <label>Bairro</label>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} />
+        </div>
+        <div className="campo">
+          <label>Taxa (R$)</label>
+          <input
+            inputMode="decimal"
+            value={taxa}
+            onChange={(e) => setTaxa(e.target.value)}
+          />
+        </div>
+      </div>
+      <button className="btn-suave" onClick={adicionar}>
+        + Adicionar bairro
+      </button>
+    </div>
+  );
+}
+
+function DatasEspeciais({
+  datas,
+  onChange,
+}: {
+  datas: { date: string; label: string }[];
+  onChange: (novas: { date: string; label: string }[]) => void;
+}) {
+  const [data, setData] = useState("");
+  const [label, setLabel] = useState("");
+
+  return (
+    <>
+      {datas.map((d, i) => (
+        <div className="hist-item" key={i}>
+          <span>
+            {d.date.split("-").reverse().join("/")}
+            {d.label ? ` — ${d.label}` : ""}
+          </span>
+          <button
+            className="btn-x"
+            onClick={() => onChange(datas.filter((_, j) => j !== i))}
+          >
+            remover
+          </button>
+        </div>
+      ))}
+      <div className="duas-colunas" style={{ marginTop: 10 }}>
+        <div className="campo">
+          <label>Data</label>
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+          />
+        </div>
+        <div className="campo">
+          <label>Motivo (opcional)</label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Natal"
+          />
+        </div>
+      </div>
+      <button
+        className="btn-suave"
+        style={{ marginBottom: 12 }}
+        onClick={() => {
+          if (!data) return;
+          onChange([...datas, { date: data, label: label.trim() }]);
+          setData("");
+          setLabel("");
+        }}
+      >
+        + Adicionar data
+      </button>
+    </>
   );
 }

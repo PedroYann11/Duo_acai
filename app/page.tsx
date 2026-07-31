@@ -1,11 +1,13 @@
 import { STORE } from "@/lib/store";
 import { Header, MenuGrid } from "@/components/Shop";
+import { StoreStatus } from "@/components/StoreStatus";
 import { Hero } from "@/components/Hero";
 
 export default function Home() {
   return (
     <>
       <Header />
+      <StoreStatus />
 
       <Hero />
 

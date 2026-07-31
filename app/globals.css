@@ -1197,3 +1197,155 @@ a {
 .produto-admin-form textarea:focus {
   border-color: var(--roxo);
 }
+
+/* ---------- Sprint 2: novo produto, foto e ordenação ---------- */
+.ordem-setas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ordem-setas button {
+  width: 26px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--creme);
+  font-size: 0.7rem;
+  color: var(--roxo);
+}
+
+.ordem-setas button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.foto-botao {
+  position: relative;
+  padding: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: none;
+}
+
+.foto-botao img {
+  width: 52px;
+  height: 65px;
+  object-fit: cover;
+  display: block;
+}
+
+.foto-botao span {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(46, 11, 38, 0.75);
+  color: var(--creme);
+  font-size: 0.55rem;
+  padding: 2px 0;
+  text-align: center;
+}
+
+.novo-produto-grid {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.foto-escolher {
+  width: 128px;
+  height: 160px;
+  border-radius: 14px;
+  border: 2px dashed var(--creme-2);
+  background: var(--creme);
+  color: var(--texto-suave);
+  font-size: 0.82rem;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.foto-escolher img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- Faixas de status e checkout ---------- */
+.faixa-banner {
+  background: var(--maracuja);
+  color: var(--acai);
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 9px 16px;
+}
+
+.faixa-fechado {
+  background: #8a2f2f;
+  color: #ffe9e0;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 9px 16px;
+}
+
+.aviso-bloqueio {
+  background: #fbe9cf;
+  color: #a05f16;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.select-bairro {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 12px;
+  background: var(--branco);
+  outline: none;
+}
+
+.select-bairro:focus {
+  border-color: var(--roxo);
+}
+
+/* ---------- Aba Loja ---------- */
+.linha-horario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.linha-horario input[type="time"] {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 8px 10px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 10px;
+  background: var(--branco);
+}
+
+.linha-horario .fechado-txt {
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.bairros-editor {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--creme-2);
+}
+
+.bairros-editor h3 {
+  font-family: var(--fonte-display);
+  font-size: 1rem;
+  margin-bottom: 8px;
+}
