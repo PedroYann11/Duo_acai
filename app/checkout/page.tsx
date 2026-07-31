@@ -90,11 +90,11 @@ export default function Checkout() {
 
     // Plano B: banco indisponível -> pedido segue pelo WhatsApp
     const linhas = itensPedido
-      .map((i) => `\u25AA ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
+      .map((i) => `- ${i.qty}x ${i.product_name} — ${formatBRL(i.unit_price * i.qty)}`)
       .join("\n");
 
     const msg = [
-      `\u{1F7E3} *NOVO PEDIDO — ${STORE.name.toUpperCase()}*`,
+      `*NOVO PEDIDO — ${STORE.name.toUpperCase()}*`,
       ``,
       linhas,
       ``,
@@ -102,12 +102,12 @@ export default function Checkout() {
       `Entrega: ${formatBRL(STORE.deliveryFee)}`,
       `*Total: ${formatBRL(total)}*`,
       ``,
-      `\u{1F464} *Cliente:* ${nome.trim()}`,
-      telefone.trim() ? `\u{1F4DE} ${telefone.trim()}` : "",
-      `\u{1F4CD} *Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
-      referencia.trim() ? `\u{1F9ED} Referência: ${referencia.trim()}` : "",
+      `*Cliente:* ${nome.trim()}`,
+      telefone.trim() ? `*Telefone:* ${telefone.trim()}` : "",
+      `*Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
+      referencia.trim() ? `*Referência:* ${referencia.trim()}` : "",
       ``,
-      `\u{1F4B3} *Pagamento:* ${pagamento}${
+      `*Pagamento:* ${pagamento}${
         pagamento === "Dinheiro" && troco.trim()
           ? ` (troco para ${troco.trim()})`
           : ""
@@ -132,15 +132,14 @@ export default function Checkout() {
             Pedido <strong>#{confirmado.numero}</strong>
           </p>
           <p className="confirmacao-texto">
-            {"Já fomos buscar seu açaí no canto mais gelado do freezer "}
-            {"\u{1F9CA}"} Total de{" "}
+            {"Já fomos buscar seu açaí no canto mais gelado do freezer. "}
+            Total de{" "}
             <strong>{formatBRL(confirmado.total)}</strong> — pagamento na
             entrega ({pagamento}
             {pagamento === "Dinheiro" && troco.trim()
               ? `, troco para ${troco.trim()}`
               : ""}
-            ). {"Avisamos no seu WhatsApp quando sair pra entrega! "}
-            {"\u{1F6F5}"}
+            ). Avisamos no seu WhatsApp quando sair pra entrega!
           </p>
           {pagamento === "Pix" && STORE.pixKey && (
             <BlocoPix total={confirmado.total} numero={confirmado.numero} />
@@ -148,7 +147,7 @@ export default function Checkout() {
           <div className="confirmacao-acoes">
             <a
               href={`https://wa.me/${STORE.whatsapp}?text=${encodeURIComponent(
-                `Oi! Fiz o pedido #${confirmado.numero} pelo site \u{1F7E3}`
+                `Oi! Fiz o pedido #${confirmado.numero} pelo site da Duo`
               )}`}
               target="_blank"
               rel="noopener"
@@ -309,8 +308,8 @@ export default function Checkout() {
             {enviando ? "Enviando pedido…" : "Finalizar pedido"}
           </button>
           <p className="aviso">
-            {"Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte "}
-            {"\u{1F9CA}\u{1F7E3}"} Prefere pedir pelo WhatsApp?{" "}
+            Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte.
+            Prefere pedir pelo WhatsApp?{" "}
             <a
               href={`https://wa.me/${STORE.whatsapp}`}
               target="_blank"
@@ -365,14 +364,14 @@ function BlocoPix({ total, numero }: { total: number; numero: string }) {
 
   return (
     <div className="bloco-pix">
-      <h2>{"Pague agora com Pix \u26A1"}</h2>
+      <h2>Pague agora com Pix</h2>
       <p>
         Escaneie o QR code ou copie o código abaixo — o valor de{" "}
         <strong>{formatBRL(total)}</strong> já vai preenchido.
       </p>
       {qr && <img src={qr} alt="QR code do Pix" className="pix-qr" />}
       <button className="pix-copiar" onClick={copiar}>
-        {copiado ? "Código copiado! \u2713" : "Copiar código Pix"}
+        {copiado ? "Código copiado!" : "Copiar código Pix"}
       </button>
       <p className="pix-obs">
         Depois de pagar, envie o comprovante no nosso WhatsApp pelo botão

@@ -75,20 +75,37 @@ export async function criarPedidoSite(dados: {
   try {
     const sb = getSupabase();
     const { itens, ...pedido } = dados;
-    const { data, error } = await sb
-      .from("orders")
-      .insert({ ...pedido, channel: "site", status: "recebido", seller_name: null })
-      .select("id")
-      .single();
-    if (error || !data) return null;
+    // O id é gerado aqui (e não lido de volta do banco) porque o cliente
+    // anônimo tem permissão de INSERIR pedidos, mas não de LER — só o admin lê.
+    const id = gerarUuid();
+    const { error } = await sb.from("orders").insert({
+      ...pedido,
+      id,
+      channel: "site",
+      status: "recebido",
+      seller_name: null,
+    });
+    if (error) return null;
     const { error: e2 } = await sb
       .from("order_items")
-      .insert(itens.map((i) => ({ ...i, order_id: data.id })));
+      .insert(itens.map((i) => ({ ...i, order_id: id })));
     if (e2) return null;
-    return data.id as string;
+    return id;
   } catch {
     return null;
   }
+}
+
+/** UUID v4 com fallback para navegadores antigos */
+function gerarUuid(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
 export async function registrarVendaBalcao(dados: {

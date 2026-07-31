@@ -16,7 +16,7 @@ export const STORE = {
   // ---- Pix da loja (para o QR code do checkout) ----
   // Preencha a chave Pix da Duo (CPF/CNPJ, telefone, email ou aleatória).
   // Se deixar vazio (""), o site não mostra o QR e o cliente paga na entrega.
-  pixKey: "",
+  pixKey: "07228088360",
   pixName: "DUO ACAI", // nome do recebedor, sem acento, máx 25 letras
   pixCity: "CRATO", // cidade do recebedor, máx 15 letras
 };

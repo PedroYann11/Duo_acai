@@ -152,7 +152,7 @@ function Painel() {
           typeof Notification !== "undefined" &&
           Notification.permission === "granted"
         ) {
-          new Notification("\u{1F7E3} Novo pedido na Duo!", {
+          new Notification("Novo pedido na Duo!", {
             body: "Abra a aba Pedidos pra ver os detalhes.",
           });
         }
@@ -219,7 +219,19 @@ function Painel() {
           onClick={alternarNotif}
           title="Som e notificação quando chegar pedido novo"
         >
-          {notifOn ? "🔔 Som ligado" : "🔕 Som desligado"}
+          {notifOn ? "Som: ligado" : "Som: desligado"}
+        </button>
+        <button
+          className="admin-tab"
+          title="Sair do painel"
+          onClick={async () => {
+            if (!confirm("Sair do painel?")) return;
+            if (supabaseOn) await getSupabase().auth.signOut();
+            sessionStorage.removeItem("duo-admin");
+            window.location.reload();
+          }}
+        >
+          Sair
         </button>
       </div>
 
@@ -705,9 +717,9 @@ function CartaoPedido({
                   if (proximo === "saiu_entrega" && pedido.customer_phone) {
                     const msg = `Oi${
                       pedido.customer_name ? " " + pedido.customer_name.split(" ")[0] : ""
-                    }! Aqui é da Duo Açaí \u{1F7E3} Seu pedido #${pedido.id
+                    }! Aqui é da Duo Açaí. Seu pedido #${pedido.id
                       .slice(0, 6)
-                      .toUpperCase()} acabou de sair pra entrega. Já já chega aí! \u{1F6F5}`;
+                      .toUpperCase()} acabou de sair pra entrega. Já já chega aí!`;
                     window.open(
                       linkWhatsApp(pedido.customer_phone, msg),
                       "_blank"
