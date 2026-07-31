@@ -68,7 +68,7 @@ export const PRODUCTS: Product[] = [
     flavor: "Pistache",
     description:
       "O queridinho: açaí com creme de pistache, cremoso e diferente de tudo.",
-    price: 18.9,
+    price: 19.9,
     image: "/products/pistache.jpg",
     available: true,
   },
