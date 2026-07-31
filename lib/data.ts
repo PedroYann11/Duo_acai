@@ -368,3 +368,47 @@ export function resumo(pedidos: Pedido[]) {
     ranking,
   };
 }
+
+
+// ---------- gestão de produtos (aba Produtos do admin) ----------
+
+export type ProdutoAdmin = {
+  id: string; // uuid do banco
+  slug: string;
+  name: string;
+  description: string;
+  price: number;
+  image_url: string;
+  available: boolean;
+  sort_order: number;
+};
+
+export async function listarProdutosAdmin(): Promise<ProdutoAdmin[]> {
+  if (!supabaseOn) return [];
+  const sb = getSupabase();
+  const { data, error } = await sb
+    .from("products")
+    .select("id, slug, name, description, price, image_url, available, sort_order")
+    .eq("active", true)
+    .order("sort_order");
+  if (error || !data) return [];
+  return data.map((p: any) => ({ ...p, price: Number(p.price) }));
+}
+
+export async function salvarProduto(
+  id: string,
+  campos: { name: string; description: string; price: number }
+): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.from("products").update(campos).eq("id", id);
+  if (error) throw new Error("Não foi possível salvar");
+}
+
+export async function alternarDisponibilidade(
+  id: string,
+  available: boolean
+): Promise<void> {
+  const sb = getSupabase();
+  const { error } = await sb.from("products").update({ available }).eq("id", id);
+  if (error) throw new Error("Não foi possível atualizar");
+}

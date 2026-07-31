@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "@/lib/cart";
+import { ProductsProvider } from "@/lib/products-context";
 
 export const metadata: Metadata = {
   title: "Duo Açaí — O açaí da garrafa",
@@ -33,7 +34,9 @@ export default function RootLayout({
         />
       </head>
       <body>
-        <CartProvider>{children}</CartProvider>
+        <ProductsProvider>
+          <CartProvider>{children}</CartProvider>
+        </ProductsProvider>
       </body>
     </html>
   );

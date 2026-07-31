@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PRODUCTS, STORE, formatBRL } from "@/lib/store";
+import { STORE, formatBRL } from "@/lib/store";
+import { useProducts } from "@/lib/products-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
 import {
   listarPedidos,
@@ -11,6 +12,10 @@ import {
   adicionarVendedor,
   removerVendedor,
   type Vendedor,
+  listarProdutosAdmin,
+  salvarProduto,
+  alternarDisponibilidade,
+  type ProdutoAdmin,
   atualizarStatus,
   apagarPedido,
   aoChegarPedido,
@@ -126,7 +131,7 @@ export default function Admin() {
 
 function Painel() {
   const [aba, setAba] = useState<
-    "vender" | "dashboard" | "pedidos" | "vendedores"
+    "vender" | "dashboard" | "pedidos" | "vendedores" | "produtos"
   >("vender");
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [toast, setToast] = useState("");
@@ -209,6 +214,12 @@ function Painel() {
           Pedidos{pendentes > 0 ? ` (${pendentes})` : ""}
         </button>
         <button
+          className={`admin-tab ${aba === "produtos" ? "ativo" : ""}`}
+          onClick={() => setAba("produtos")}
+        >
+          Produtos
+        </button>
+        <button
           className={`admin-tab ${aba === "vendedores" ? "ativo" : ""}`}
           onClick={() => setAba("vendedores")}
         >
@@ -249,6 +260,7 @@ function Painel() {
         <Pedidos pedidos={pedidos} onMudou={recarregar} />
       )}
       {aba === "vendedores" && <Vendedores avisar={avisar} />}
+      {aba === "produtos" && <Produtos avisar={avisar} />}
 
       {toast && <div className="toast-ok">{toast}</div>}
       {!supabaseOn && (
@@ -293,6 +305,7 @@ function RegistrarVenda({
   onSalvo: () => void;
   onErro: () => void;
 }) {
+  const PRODUCTS = useProducts();
   const [qtds, setQtds] = useState<Record<string, number>>({});
   const [pagamento, setPagamento] = useState("Pix");
   const [salvando, setSalvando] = useState(false);
@@ -761,6 +774,176 @@ function CartaoPedido({
         >
           apagar
         </button>
+      )}
+    </div>
+  );
+}
+
+
+/* ================= Produtos ================= */
+
+function Produtos({ avisar }: { avisar: (msg: string) => void }) {
+  const [lista, setLista] = useState<ProdutoAdmin[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [editando, setEditando] = useState<string | null>(null);
+
+  const carregar = async () => {
+    setLista(await listarProdutosAdmin());
+    setCarregando(false);
+  };
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  if (!supabaseOn) {
+    return (
+      <p className="aviso-local">
+        A gestão de produtos precisa do Supabase conectado. Siga o passo a
+        passo do README pra ativar.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div className="bloco">
+        <h2>Cardápio</h2>
+        {carregando && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Carregando…
+          </p>
+        )}
+        {!carregando && lista.length === 0 && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Nenhum produto no banco ainda. Rode o arquivo
+            supabase/etapa1-produtos.sql no SQL Editor do Supabase pra migrar
+            o cardápio.
+          </p>
+        )}
+        {lista.map((p) => (
+          <CartaoProduto
+            key={p.id}
+            produto={p}
+            aberto={editando === p.id}
+            onEditar={() =>
+              setEditando(editando === p.id ? null : p.id)
+            }
+            onMudou={() => {
+              carregar();
+            }}
+            avisar={avisar}
+          />
+        ))}
+      </div>
+      <p className="aviso-local">
+        As mudanças valem na hora pra quem abrir o site. Adicionar produto
+        novo com foto chega na próxima atualização do painel.
+      </p>
+    </>
+  );
+}
+
+function CartaoProduto({
+  produto,
+  aberto,
+  onEditar,
+  onMudou,
+  avisar,
+}: {
+  produto: ProdutoAdmin;
+  aberto: boolean;
+  onEditar: () => void;
+  onMudou: () => void;
+  avisar: (msg: string) => void;
+}) {
+  const [nome, setNome] = useState(produto.name);
+  const [descricao, setDescricao] = useState(produto.description);
+  const [preco, setPreco] = useState(produto.price.toFixed(2).replace(".", ","));
+  const [salvando, setSalvando] = useState(false);
+  const [mudandoDisp, setMudandoDisp] = useState(false);
+
+  const salvar = async () => {
+    const valor = parseFloat(preco.replace(",", "."));
+    if (!nome.trim() || isNaN(valor) || valor <= 0) {
+      avisar("Confira o nome e o preço");
+      return;
+    }
+    setSalvando(true);
+    try {
+      await salvarProduto(produto.id, {
+        name: nome.trim(),
+        description: descricao.trim(),
+        price: valor,
+      });
+      avisar("Produto salvo");
+      onMudou();
+      onEditar();
+    } catch {
+      avisar("Erro ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const alternar = async () => {
+    if (mudandoDisp) return;
+    setMudandoDisp(true);
+    try {
+      await alternarDisponibilidade(produto.id, !produto.available);
+      onMudou();
+    } catch {
+      avisar("Erro ao atualizar");
+    } finally {
+      setMudandoDisp(false);
+    }
+  };
+
+  return (
+    <div className="produto-admin">
+      <div className="produto-admin-linha">
+        <img src={produto.image_url} alt={produto.name} />
+        <div className="produto-admin-info">
+          <strong>{produto.name}</strong>
+          <span>{formatBRL(produto.price)}</span>
+        </div>
+        <button
+          className={`pill ${produto.available ? "ativo" : ""}`}
+          onClick={alternar}
+          title="Toque para alternar disponível/esgotado"
+        >
+          {mudandoDisp ? "…" : produto.available ? "Disponível" : "Esgotado"}
+        </button>
+        <button className="btn-suave" onClick={onEditar}>
+          {aberto ? "Fechar" : "Editar"}
+        </button>
+      </div>
+
+      {aberto && (
+        <div className="produto-admin-form">
+          <div className="campo">
+            <label>Nome</label>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} />
+          </div>
+          <div className="campo">
+            <label>Descrição</label>
+            <textarea
+              rows={2}
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+            />
+          </div>
+          <div className="campo" style={{ maxWidth: 160 }}>
+            <label>Preço (R$)</label>
+            <input
+              inputMode="decimal"
+              value={preco}
+              onChange={(e) => setPreco(e.target.value)}
+            />
+          </div>
+          <button className="btn-principal" onClick={salvar}>
+            {salvando ? "Salvando…" : "Salvar alterações"}
+          </button>
+        </div>
       )}
     </div>
   );

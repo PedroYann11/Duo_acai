@@ -1132,3 +1132,68 @@ a {
   font-size: 0.8rem !important;
   margin-top: 10px !important;
 }
+
+/* ---------- Aba Produtos do admin ---------- */
+.produto-admin {
+  border-bottom: 1px solid var(--creme-2);
+  padding: 12px 0;
+}
+
+.produto-admin:last-child {
+  border-bottom: none;
+}
+
+.produto-admin-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.produto-admin-linha img {
+  width: 52px;
+  height: 65px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.produto-admin-info {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.produto-admin-info span {
+  color: var(--roxo);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.produto-admin .pill:not(.ativo) {
+  background: #fbe9cf;
+  border-color: #e8c894;
+  color: #a05f16;
+}
+
+.produto-admin-form {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--creme);
+  border-radius: 12px;
+}
+
+.produto-admin-form textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 12px;
+  background: var(--branco);
+  outline: none;
+  resize: vertical;
+}
+
+.produto-admin-form textarea:focus {
+  border-color: var(--roxo);
+}

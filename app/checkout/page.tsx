@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { PRODUCTS, STORE, formatBRL } from "@/lib/store";
+import { STORE, formatBRL } from "@/lib/store";
+import { useProducts } from "@/lib/products-context";
 import { useCart } from "@/lib/cart";
 import { criarPedidoSite } from "@/lib/data";
 import { gerarPixCopiaECola } from "@/lib/pix";
@@ -11,6 +12,7 @@ import QRCode from "qrcode";
 type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
 
 export default function Checkout() {
+  const PRODUCTS = useProducts();
   const { items, subtotal, total, clear } = useCart();
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");

@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { PRODUCTS, STORE } from "./store";
+import { STORE } from "./store";
+import { useProducts } from "./products-context";
 
 export type CartItem = { productId: string; qty: number };
 
@@ -28,6 +29,7 @@ const CartContext = createContext<CartContextType | null>(null);
 const STORAGE_KEY = "duo-cart-v1";
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const PRODUCTS = useProducts();
   const [items, setItems] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -75,7 +77,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       sub += p.price * item.qty;
     }
     return { totalItems: count, subtotal: sub };
-  }, [items]);
+  }, [items, PRODUCTS]);
 
   const total = subtotal + (items.length > 0 ? STORE.deliveryFee : 0);
 

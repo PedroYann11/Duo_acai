@@ -74,6 +74,14 @@ Sem o Supabase configurado, o site continua funcionando normalmente em
 "modo local": pedidos vão só pro WhatsApp e o admin usa senha simples
 com dados salvos no navegador.
 
+## Migrar produtos para o banco (Etapa 1)
+
+Rode o arquivo `supabase/etapa1-produtos.sql` no SQL Editor do Supabase.
+A partir daí, a aba **Produtos** do painel controla o cardápio: editar
+nome/descrição/preço e marcar esgotado com um toque — tudo vale na hora
+no site. Se o banco estiver indisponível, o site usa a lista reserva do
+código (`lib/store.ts`) e continua vendendo.
+
 ## Painel admin (/admin)
 
 Acesse **seudominio.com/admin** (ou duo-acai.vercel.app/admin).

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PRODUCTS, STORE, formatBRL, type Product } from "@/lib/store";
+import { STORE, formatBRL, type Product } from "@/lib/store";
+import { useProducts } from "@/lib/products-context";
 import { useCart } from "@/lib/cart";
 
 /* ---------- Header ---------- */
@@ -31,6 +32,7 @@ export function Header() {
 
 /* ---------- Drawer do carrinho ---------- */
 function CartDrawer({ onClose }: { onClose: () => void }) {
+  const PRODUCTS = useProducts();
   const { items, setQty, subtotal, total } = useCart();
 
   return (
@@ -147,5 +149,18 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
       </div>
     </article>
+  );
+}
+
+
+/* ---------- Grade do cardápio (lê produtos do banco) ---------- */
+export function MenuGrid() {
+  const products = useProducts();
+  return (
+    <div className="grid">
+      {products.map((p) => (
+        <ProductCard key={p.id} product={p} />
+      ))}
+    </div>
   );
 }

@@ -1,5 +1,5 @@
-import { PRODUCTS, STORE } from "@/lib/store";
-import { Header, ProductCard } from "@/components/Shop";
+import { STORE } from "@/lib/store";
+import { Header, MenuGrid } from "@/components/Shop";
 import { Hero } from "@/components/Hero";
 
 export default function Home() {
@@ -27,11 +27,7 @@ export default function Home() {
         <p className="menu-sub">
           A partir de R$ 18,90 · {STORE.openHours}
         </p>
-        <div className="grid">
-          {PRODUCTS.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <MenuGrid />
       </main>
 
       <footer className="footer">
