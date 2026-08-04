@@ -5,6 +5,7 @@ import { ProductsProvider } from "@/lib/products-context";
 import { SettingsProvider } from "@/lib/settings-context";
 import { PromoProvider } from "@/lib/promo-context";
 import { ThemeApplier } from "@/components/ThemeApplier";
+import { WhatsAppFlutuante } from "@/components/WhatsAppFlutuante";
 
 export const metadata: Metadata = {
   title: "Duo Açaí — O açaí da garrafa",
@@ -41,7 +42,10 @@ export default function RootLayout({
         <SettingsProvider>
           <ThemeApplier />
           <ProductsProvider>
-            <CartProvider>{children}</CartProvider>
+            <PromoProvider>
+              <CartProvider>{children}</CartProvider>
+              <WhatsAppFlutuante />
+            </PromoProvider>
           </ProductsProvider>
         </SettingsProvider>
       </body>

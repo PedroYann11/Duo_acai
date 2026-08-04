@@ -77,15 +77,28 @@ a {
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.logo-icone {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.logo-texto {
   font-family: var(--fonte-display);
   font-weight: 800;
   font-size: 1.6rem;
   letter-spacing: 0.02em;
   line-height: 1;
-  text-decoration: none;
 }
 
-.logo span {
+.logo-texto span {
   display: block;
   font-family: var(--fonte-corpo);
   font-weight: 500;
@@ -225,6 +238,7 @@ a {
 }
 
 .card {
+  position: relative;
   background: var(--branco);
   border-radius: var(--raio);
   overflow: hidden;
@@ -232,6 +246,22 @@ a {
   display: flex;
   flex-direction: column;
   transition: transform 0.18s ease;
+}
+
+.card-selo {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  background: var(--maracuja);
+  color: var(--acai);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
 .card:hover {
@@ -562,6 +592,22 @@ a {
   accent-color: var(--roxo);
 }
 
+.opcao-icone {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--creme-2);
+  color: var(--roxo);
+  flex-shrink: 0;
+}
+
+.opcao:has(input:checked) .opcao-icone {
+  background: var(--roxo);
+  color: #fff;
+}
+
 .resumo-item {
   display: flex;
   justify-content: space-between;
@@ -617,8 +663,17 @@ a {
   text-align: center;
 }
 
-.footer .logo {
+.footer-logo {
   color: var(--creme);
+}
+
+.footer-logo .logo-icone {
+  width: 44px;
+  height: 44px;
+}
+
+.footer-logo .logo-texto {
+  font-size: 1.9rem;
 }
 
 .footer p {
@@ -669,14 +724,6 @@ a {
   width: min(200px, 46vw);
   height: auto;
   filter: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.35));
-}
-
-.garrafa-legenda {
-  font-size: 0.75rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--lilas);
-  opacity: 0.8;
 }
 
 @media (max-width: 760px) {
@@ -1350,18 +1397,6 @@ a {
   margin-bottom: 8px;
 }
 
-/* ---------- Tela de loja fechada ---------- */
-.fechado-icone {
-  width: 74px;
-  height: 74px;
-  margin: 0 auto 18px;
-  border-radius: 50%;
-  background: var(--lilas);
-  color: var(--acai);
-  display: grid;
-  place-items: center;
-}
-
 /* ---------- Editor de cores ---------- */
 .cores-grid {
   display: grid;
@@ -1391,56 +1426,35 @@ a {
   cursor: pointer;
 }
 
-/* ---------- Tela de loja fechada + calculadora de km ---------- */
-.fechado-card {
+/* ---------- Aviso de loja fechada (não bloqueia o pedido) ---------- */
+.aviso-fechado {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   background: linear-gradient(160deg, var(--acai) 0%, var(--roxo) 100%);
   color: var(--creme);
   border-radius: var(--raio);
-  padding: 46px 26px;
-  text-align: center;
+  padding: 18px 20px;
+  margin-bottom: 18px;
   box-shadow: var(--sombra);
-  margin-top: 30px;
 }
 
-.fechado-emoji {
-  font-size: 3rem;
-  margin-bottom: 10px;
+.aviso-fechado-icone {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
-.fechado-card h1 {
+.aviso-fechado h2 {
   font-family: var(--fonte-display);
-  font-size: 1.9rem;
+  font-size: 1.1rem;
+  margin-bottom: 4px;
 }
 
-.fechado-motivo {
-  margin-top: 10px;
-  font-size: 1.02rem;
-  color: rgba(246, 236, 218, 0.9);
-}
-
-.fechado-reabre {
-  margin-top: 14px;
-  display: inline-block;
-  background: var(--maracuja);
-  color: var(--acai);
-  font-weight: 700;
-  padding: 10px 20px;
-  border-radius: 999px;
-}
-
-.fechado-obs {
-  margin: 18px auto 0;
-  max-width: 380px;
-  font-size: 0.9rem;
-  color: rgba(246, 236, 218, 0.75);
+.aviso-fechado p {
+  font-size: 0.92rem;
   line-height: 1.5;
-}
-
-.fechado-card .btn-principal {
-  display: block;
-  background: transparent;
-  border: 1.5px solid rgba(199, 163, 220, 0.5);
-  color: var(--creme);
+  color: rgba(246, 236, 218, 0.9);
 }
 
 .km-bloco {
@@ -1834,4 +1848,85 @@ a {
 .donut-valor {
   color: var(--texto-suave);
   font-size: 0.8rem;
+}
+
+/* ---------- Pré-tela (boas-vindas antes do cardápio) ---------- */
+.pre-tela {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 30% 20%, var(--roxo) 0%, var(--acai) 70%);
+  overflow-y: auto;
+}
+
+.pre-tela-conteudo {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pre-tela-logo {
+  align-self: center;
+  color: var(--creme);
+  margin-bottom: 8px;
+}
+
+.pre-tela-logo .logo-icone {
+  width: 56px;
+  height: 56px;
+}
+
+.pre-tela-logo .logo-texto {
+  font-size: 1.9rem;
+}
+
+.pre-tela-sub {
+  color: var(--creme);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pre-tela-link {
+  display: block;
+  background: rgba(246, 236, 218, 0.08);
+  border: 1.5px solid rgba(199, 163, 220, 0.45);
+  color: var(--creme);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 13px 18px;
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.pre-tela-link:hover {
+  background: rgba(246, 236, 218, 0.16);
+}
+
+/* ---------- WhatsApp flutuante ---------- */
+.wpp-flutuante {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 150;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  transition: transform 0.15s ease;
+}
+
+.wpp-flutuante:hover {
+  transform: scale(1.08);
 }

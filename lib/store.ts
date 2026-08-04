@@ -29,6 +29,7 @@ export type Product = {
   price: number;
   image: string;
   available: boolean;
+  highlightLabel?: string | null;
 };
 
 export const PRODUCTS: Product[] = [
@@ -37,7 +38,7 @@ export const PRODUCTS: Product[] = [
     name: "Duo Maracujá",
     flavor: "Maracujá",
     description:
-      "Açaí cremoso em camadas com creme de maracujá de verdade, com sementinhas e tudo.",
+      "A combinação perfeita entre o açaí cremoso da DUO e um creme de maracujá intenso, preparado com a própria fruta para garantir sabor autêntico, frescor e equilíbrio entre o doce e o cítrico. Uma experiência refrescante, marcante e simplesmente viciante.",
     price: 18.9,
     image: "/products/maracuja.jpg",
     available: true,
@@ -47,7 +48,7 @@ export const PRODUCTS: Product[] = [
     name: "Duo Ninho",
     flavor: "Leite Ninho",
     description:
-      "A dupla clássica: açaí gelado marmorizado com creme de leite Ninho.",
+      "A combinação perfeita de açaí intenso com creme de ninho ultra cremoso. Camadas que se encontram e entregam uma experiência simplesmente viciante.",
     price: 18.9,
     image: "/products/ninho.jpg",
     available: true,
@@ -57,7 +58,7 @@ export const PRODUCTS: Product[] = [
     name: "Duo Nutella",
     flavor: "Nutella",
     description:
-      "Açaí intenso misturado com Nutella de ponta a ponta da garrafa.",
+      "Açaí intenso, creme de Nutella cremoso e uma combinação que transforma cada gole em puro prazer.",
     price: 18.9,
     image: "/products/nutella.jpg",
     available: true,
@@ -67,7 +68,7 @@ export const PRODUCTS: Product[] = [
     name: "Duo Pistache",
     flavor: "Pistache",
     description:
-      "O queridinho: açaí com creme de pistache, cremoso e diferente de tudo.",
+      "Açaí intenso, creme de pistache cremoso com pedaços crocantes que transformam cada gole em uma explosão de sabor.",
     price: 19.9,
     image: "/products/pistache.jpg",
     available: true,
@@ -77,7 +78,7 @@ export const PRODUCTS: Product[] = [
     name: "Duo Paçoca",
     flavor: "Paçoca",
     description:
-      "Açaí batido com paçoca, aquele sabor de amendoim em cada gole.",
+      "A combinação perfeita entre o açaí cremoso e o sabor marcante da paçoca. Camadas generosas que misturam o geladinho do açaí com a textura e o doce equilibrado do amendoim, criando uma experiência única.",
     price: 18.9,
     image: "/products/pacoca.jpg",
     available: true,

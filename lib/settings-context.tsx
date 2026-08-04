@@ -29,6 +29,7 @@ export type ConfigLoja = {
   };
   hours: Record<string, HorarioDia>;
   special_dates: { date: string; label: string }[];
+  pickup: { enabled: boolean; address: string };
   contact: {
     whatsapp: string;
     pix_key: string;
@@ -49,14 +50,16 @@ export type Bairro = { id: string; name: string; fee: number };
 const HORARIO_PADRAO: Record<string, HorarioDia> = Object.fromEntries(
   ["0", "1", "2", "3", "4", "5", "6"].map((d) => [
     d,
-    { closed: false, open: "10:00", close: "22:00" },
+    d === "2"
+      ? { closed: true, open: "16:00", close: "22:00" } // terça: fechado
+      : { closed: false, open: "16:00", close: "22:00" },
   ])
 );
 
 export const TEMA_PADRAO = {
   roxo: "#61174c",
   acai: "#2e0b26",
-  maracuja: "#f2c230",
+  maracuja: "#fffdf8",
   creme: "#f6ecda",
   lilas: "#c7a3dc",
 };
@@ -76,6 +79,10 @@ export const CONFIG_PADRAO: ConfigLoja = {
   },
   hours: HORARIO_PADRAO,
   special_dates: [],
+  pickup: {
+    enabled: true,
+    address: "Rua José Marrocos, 145 — Pinto Madeira, Crato/CE",
+  },
   contact: {
     whatsapp: STORE.whatsapp,
     pix_key: STORE.pixKey,
@@ -182,7 +189,7 @@ export function distanciaKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const DIAS_SEMANA = [
+export const DIAS_SEMANA = [
   "domingo",
   "segunda",
   "terça",
@@ -270,4 +277,46 @@ export function situacaoDaLoja(config: ConfigLoja): {
   }
 
   return { aberta: true, motivo: "", reabre: null };
+}
+
+/** Texto amigável do horário de funcionamento, gerado a partir da configuração real */
+export function resumoHorario(config: ConfigLoja): string {
+  const dias = ["0", "1", "2", "3", "4", "5", "6"];
+  const abertos = dias.filter((d) => !config.hours[d]?.closed);
+  const fechados = dias
+    .filter((d) => config.hours[d]?.closed)
+    .map((d) => DIAS_SEMANA[Number(d)]);
+
+  if (abertos.length === 0) return "Fechado até novo aviso";
+
+  const janelas = new Set(
+    abertos.map((d) => `${config.hours[d].open}-${config.hours[d].close}`)
+  );
+  if (janelas.size > 1) return "Horários variam por dia — confira no site";
+
+  const dia = config.hours[abertos[0]];
+  const horario = `${dia.open} às ${dia.close}`;
+  if (fechados.length === 0) return `Todos os dias, ${horario}`;
+  return `${horario} · fechado: ${fechados.join(", ")}`;
+}
+
+/** Tempo médio de preparo + entrega, hoje um valor fixo (~45 min) */
+export const TEMPO_ENTREGA_MIN = 45;
+/** Tempo médio só de preparo, para pedidos de retirada na loja */
+export const TEMPO_RETIRADA_MIN = 20;
+
+/** Texto de previsão pro cliente, considerando se a loja está aberta agora */
+export function previsaoPedido(
+  situacao: ReturnType<typeof situacaoDaLoja>,
+  tipo: "entrega" | "retirada"
+): string {
+  const tempo = tipo === "retirada" ? TEMPO_RETIRADA_MIN : TEMPO_ENTREGA_MIN;
+  const acao = tipo === "retirada" ? "Fica pronto" : "Chega";
+
+  if (situacao.aberta) return `${acao} em até ${tempo} min`;
+
+  const quando = situacao.reabre
+    ? `assim que abrirmos (${situacao.reabre})`
+    : "assim que voltarmos a atender";
+  return `Estamos fechados agora, mas seu pedido é bem-vindo! Vamos preparar ${quando} — depois disso, ${acao.toLowerCase()} em até ${tempo} min.`;
 }

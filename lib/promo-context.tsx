@@ -20,6 +20,7 @@ export type Promocao = {
   discount_value: number | null;
   min_order: number;
   active: boolean;
+  banner_text: string | null;
 };
 
 const PromoContext = createContext<{ promos: Promocao[] }>({ promos: [] });
@@ -29,9 +30,10 @@ export function PromoProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabaseOn) return;
-    (async () => {
+    const sb = getSupabase();
+
+    const carregar = async () => {
       try {
-        const sb = getSupabase();
         const { data } = await sb
           .from("promotions")
           .select("*")
@@ -49,7 +51,23 @@ export function PromoProvider({ children }: { children: ReactNode }) {
       } catch {
         // sem promoções: segue sem desconto
       }
-    })();
+    };
+
+    carregar();
+
+    // reflete na hora quando o admin cria/edita/desativa uma promoção
+    const canal = sb
+      .channel("promocoes-mudancas")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "promotions" },
+        carregar
+      )
+      .subscribe();
+
+    return () => {
+      sb.removeChannel(canal);
+    };
   }, []);
 
   return (

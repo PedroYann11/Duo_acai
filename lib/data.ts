@@ -19,9 +19,12 @@ export type ItemPedido = {
   qty: number;
 };
 
+export type TipoEntrega = "entrega" | "retirada";
+
 export type Pedido = {
   id: string;
   channel: Canal;
+  delivery_type: TipoEntrega;
   customer_name: string | null;
   customer_phone: string | null;
   street: string | null;
@@ -58,11 +61,12 @@ const KEY_LOCAL = "duo-pedidos-local-v1";
 // ---------- criação ----------
 
 export async function criarPedidoSite(dados: {
+  delivery_type: TipoEntrega;
   customer_name: string;
   customer_phone: string | null;
-  street: string;
-  number: string;
-  neighborhood: string;
+  street: string | null;
+  number: string | null;
+  neighborhood: string | null;
   reference: string | null;
   payment_method: string;
   change_for: string | null;
@@ -117,6 +121,7 @@ export async function registrarVendaBalcao(dados: {
   const pedido: Pedido = {
     id: crypto.randomUUID(),
     channel: "balcao",
+    delivery_type: "retirada",
     customer_name: null,
     customer_phone: null,
     street: null,
@@ -237,12 +242,18 @@ export function linkWhatsApp(telefone: string, mensagem: string): string {
 
 // ---------- vendedores ----------
 
-export type Vendedor = { id: string; name: string };
+export type Vendedor = {
+  id: string;
+  name: string;
+  role: string | null;
+  salary: number | null;
+  monthly_goal: number | null;
+};
 
 const KEY_VENDEDORES = "duo-vendedores-v1";
 const VENDEDORES_PADRAO: Vendedor[] = [
-  { id: "v1", name: "Pedro Kailã" },
-  { id: "v2", name: "Marcelo Teixeira" },
+  { id: "v1", name: "Pedro Kailã", role: null, salary: null, monthly_goal: null },
+  { id: "v2", name: "Marcelo Teixeira", role: null, salary: null, monthly_goal: null },
 ];
 
 function vendedoresLocais(): Vendedor[] {
@@ -259,11 +270,15 @@ export async function listarVendedores(): Promise<Vendedor[]> {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("sellers")
-    .select("id, name")
+    .select("id, name, role, salary, monthly_goal")
     .eq("active", true)
     .order("name");
   if (error || !data) return [];
-  return data as Vendedor[];
+  return data.map((v: any) => ({
+    ...v,
+    salary: v.salary != null ? Number(v.salary) : null,
+    monthly_goal: v.monthly_goal != null ? Number(v.monthly_goal) : null,
+  }));
 }
 
 export async function adicionarVendedor(nome: string): Promise<void> {
@@ -277,7 +292,29 @@ export async function adicionarVendedor(nome: string): Promise<void> {
     const todos = vendedoresLocais();
     if (todos.some((v) => v.name.toLowerCase() === limpo.toLowerCase()))
       throw new Error("Esse nome já existe");
-    todos.push({ id: crypto.randomUUID(), name: limpo });
+    todos.push({
+      id: crypto.randomUUID(),
+      name: limpo,
+      role: null,
+      salary: null,
+      monthly_goal: null,
+    });
+    localStorage.setItem(KEY_VENDEDORES, JSON.stringify(todos));
+  }
+}
+
+export async function atualizarVendedor(
+  id: string,
+  dados: { role: string | null; salary: number | null; monthly_goal: number | null }
+): Promise<void> {
+  if (supabaseOn) {
+    const sb = getSupabase();
+    const { error } = await sb.from("sellers").update(dados).eq("id", id);
+    if (error) throw new Error("Não foi possível salvar");
+  } else {
+    const todos = vendedoresLocais().map((v) =>
+      v.id === id ? { ...v, ...dados } : v
+    );
     localStorage.setItem(KEY_VENDEDORES, JSON.stringify(todos));
   }
 }
@@ -291,6 +328,22 @@ export async function removerVendedor(id: string): Promise<void> {
     const todos = vendedoresLocais().filter((v) => v.id !== id);
     localStorage.setItem(KEY_VENDEDORES, JSON.stringify(todos));
   }
+}
+
+/** Vendas do mês atual de um vendedor específico (pra tela dele) */
+export function resumoDoMes(pedidos: Pedido[], sellerName: string) {
+  const agora = new Date();
+  const doMes = pedidos.filter((p) => {
+    if (p.status === "cancelado" || p.seller_name !== sellerName) return false;
+    const d = new Date(p.created_at);
+    return (
+      d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear()
+    );
+  });
+  return {
+    qtd: doMes.length,
+    receita: doMes.reduce((soma, p) => soma + Number(p.total), 0),
+  };
 }
 
 // ---------- indicadores ----------
@@ -392,6 +445,56 @@ export function resumo(pedidos: Pedido[]) {
   };
 }
 
+export type ClienteInativo = {
+  telefone: string;
+  nome: string;
+  ultimoPedidoEm: string;
+  diasSemPedir: number;
+  totalPedidos: number;
+};
+
+/**
+ * Agrupa os pedidos (já carregados) por telefone e lista quem não pede
+ * há X dias ou mais. Roda em cima dos mesmos pedidos do dashboard — não
+ * busca cliente que nunca apareceu nos últimos 500 pedidos.
+ */
+export function clientesInativos(
+  pedidos: Pedido[],
+  diasSemPedido: number
+): ClienteInativo[] {
+  const porTelefone = new Map<string, Pedido[]>();
+  for (const p of pedidos) {
+    if (p.status === "cancelado") continue;
+    const tel = (p.customer_phone || "").replace(/\D/g, "");
+    if (!tel) continue;
+    if (!porTelefone.has(tel)) porTelefone.set(tel, []);
+    porTelefone.get(tel)!.push(p);
+  }
+
+  const agora = Date.now();
+  const resultado: ClienteInativo[] = [];
+
+  for (const [telefone, doCliente] of porTelefone) {
+    const ultimo = doCliente.reduce((max, p) =>
+      new Date(p.created_at) > new Date(max.created_at) ? p : max
+    );
+    const dias = Math.floor(
+      (agora - new Date(ultimo.created_at).getTime()) / 86400000
+    );
+    if (dias >= diasSemPedido) {
+      resultado.push({
+        telefone,
+        nome: ultimo.customer_name || "Cliente",
+        ultimoPedidoEm: ultimo.created_at,
+        diasSemPedir: dias,
+        totalPedidos: doCliente.length,
+      });
+    }
+  }
+
+  return resultado.sort((a, b) => b.diasSemPedir - a.diasSemPedir);
+}
+
 
 // ---------- gestão de produtos (aba Produtos do admin) ----------
 
@@ -404,6 +507,7 @@ export type ProdutoAdmin = {
   image_url: string;
   available: boolean;
   sort_order: number;
+  highlight_label: string | null;
 };
 
 export async function listarProdutosAdmin(): Promise<ProdutoAdmin[]> {
@@ -411,7 +515,9 @@ export async function listarProdutosAdmin(): Promise<ProdutoAdmin[]> {
   const sb = getSupabase();
   const { data, error } = await sb
     .from("products")
-    .select("id, slug, name, description, price, image_url, available, sort_order")
+    .select(
+      "id, slug, name, description, price, image_url, available, sort_order, highlight_label"
+    )
     .eq("active", true)
     .order("sort_order");
   if (error || !data) return [];
@@ -420,7 +526,12 @@ export async function listarProdutosAdmin(): Promise<ProdutoAdmin[]> {
 
 export async function salvarProduto(
   id: string,
-  campos: { name: string; description: string; price: number }
+  campos: {
+    name: string;
+    description: string;
+    price: number;
+    highlight_label: string | null;
+  }
 ): Promise<void> {
   const sb = getSupabase();
   const { error } = await sb.from("products").update(campos).eq("id", id);
@@ -579,6 +690,7 @@ export type PromocaoAdmin = {
   discount_value: number | null;
   min_order: number;
   active: boolean;
+  banner_text: string | null;
 };
 
 export async function listarPromocoes(): Promise<PromocaoAdmin[]> {

@@ -18,8 +18,11 @@ export function Header() {
       <header className="header">
         <div className="header-inner">
           <Link href="/" className="logo">
-            DUO
-            <span>O açaí da garrafa</span>
+            <img src="/icone-garrafa.png" alt="" className="logo-icone" />
+            <span className="logo-texto">
+              DUO
+              <span>O açaí da garrafa</span>
+            </span>
           </Link>
           <button className="btn-cart" onClick={() => setOpen(true)}>
             Carrinho
@@ -135,6 +138,9 @@ export function ProductCard({ product }: { product: Product }) {
 
   return (
     <article className={`card ${product.available ? "" : "esgotado"}`}>
+      {product.highlightLabel && (
+        <span className="card-selo">{product.highlightLabel}</span>
+      )}
       <img className="card-img" src={product.image} alt={product.name} />
       <div className="card-body">
         <h3>{product.name}</h3>

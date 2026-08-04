@@ -6,6 +6,7 @@ import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
 import {
   distanciaKm,
+  previsaoPedido,
   situacaoDaLoja,
   useSettings,
 } from "@/lib/settings-context";
@@ -24,6 +25,34 @@ import { gerarPixCopiaECola } from "@/lib/pix";
 import QRCode from "qrcode";
 
 type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
+
+/* Ícone de cada forma de pagamento (visual, sem dependência externa) */
+function IconePagamento({ tipo }: { tipo: Pagamento }) {
+  if (tipo === "Pix") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="7" y="7" width="10" height="10" rx="2.5" transform="rotate(45 12 12)" />
+        <path d="M7 12 Q9.5 9 12 12 T17 12" />
+      </svg>
+    );
+  }
+  if (tipo === "Dinheiro") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2.5" y="6" width="19" height="12" rx="2" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M6.5 9v0M17.5 15v0" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M2.5 10h19" />
+      <path d="M6 15h4" />
+    </svg>
+  );
+}
 
 export default function Checkout() {
   const PRODUCTS = useProducts();
@@ -72,6 +101,10 @@ export default function Checkout() {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+  const pickupHabilitado = config.pickup.enabled;
+  const [tipoEntrega, setTipoEntrega] = useState<"entrega" | "retirada">(
+    "entrega"
+  );
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [rua, setRua] = useState("");
@@ -82,11 +115,9 @@ export default function Checkout() {
   const [troco, setTroco] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [cupomTexto, setCupomTexto] = useState("");
-  const [cupomAplicado, setCupomAplicado] = useState<{
-    desconto: number;
-    msg: string;
-    code: string;
-  } | null>(null);
+  const [cupomAplicadoCode, setCupomAplicadoCode] = useState<string | null>(
+    null
+  );
   const [cupomErro, setCupomErro] = useState("");
   const [confirmado, setConfirmado] = useState<{
     numero: string;
@@ -102,20 +133,20 @@ export default function Checkout() {
     precosItens,
     promos
   );
-  const descontoCupom = cupomAplicado?.desconto || 0;
+  // recalcula sempre a partir do cupom aplicado + carrinho atual (não fica desatualizado)
+  const cupomResultado = cupomAplicadoCode
+    ? aplicarCupom(cupomAplicadoCode, subtotal, promos)
+    : null;
+  const descontoCupom = cupomResultado?.ok ? cupomResultado.desconto : 0;
   const descontoTotal = descontoCombo + descontoCupom;
 
   const aplicarCupomTexto = () => {
     setCupomErro("");
     const r = aplicarCupom(cupomTexto, subtotal, promos);
     if (r.ok) {
-      setCupomAplicado({
-        desconto: r.desconto,
-        msg: r.msg,
-        code: cupomTexto.trim().toUpperCase(),
-      });
+      setCupomAplicadoCode(cupomTexto.trim().toUpperCase());
     } else {
-      setCupomAplicado(null);
+      setCupomAplicadoCode(null);
       setCupomErro(r.msg || "Cupom inválido.");
     }
   };
@@ -123,25 +154,28 @@ export default function Checkout() {
   const bairroSelecionado = porBairro
     ? bairros.find((b) => b.name === bairro) || null
     : null;
-  const taxaEntrega = porBairro
-    ? bairroSelecionado?.fee ?? 0
-    : porKm && kmInfo
-      ? kmInfo.taxa
-      : config.delivery.fee;
+  const taxaEntrega =
+    tipoEntrega === "retirada"
+      ? 0
+      : porBairro
+        ? bairroSelecionado?.fee ?? 0
+        : porKm && kmInfo
+          ? kmInfo.taxa
+          : config.delivery.fee;
   const total = subtotal - descontoTotal + taxaEntrega;
   const minimo = config.delivery.min_order || 0;
   const abaixoDoMinimo = minimo > 0 && subtotal < minimo;
 
   const valido =
     items.length > 0 &&
-    situacao.aberta &&
     !abaixoDoMinimo &&
     nome.trim() &&
     telefone.trim().replace(/\D/g, "").length >= 10 &&
-    rua.trim() &&
-    numero.trim() &&
-    bairro.trim() &&
-    (!porBairro || Boolean(bairroSelecionado));
+    (tipoEntrega === "retirada" ||
+      (rua.trim() &&
+        numero.trim() &&
+        bairro.trim() &&
+        (!porBairro || Boolean(bairroSelecionado))));
 
   const finalizarPedido = async () => {
     if (!valido || enviando) return;
@@ -169,12 +203,14 @@ export default function Checkout() {
     let pedidoId: string | null = null;
     try {
       pedidoId = await criarPedidoSite({
+        delivery_type: tipoEntrega,
         customer_name: nome.trim(),
         customer_phone: telefone.trim() || null,
-        street: rua.trim(),
-        number: numero.trim(),
-        neighborhood: bairro.trim(),
-        reference: referencia.trim() || null,
+        street: tipoEntrega === "retirada" ? null : rua.trim(),
+        number: tipoEntrega === "retirada" ? null : numero.trim(),
+        neighborhood: tipoEntrega === "retirada" ? null : bairro.trim(),
+        reference:
+          tipoEntrega === "retirada" ? null : referencia.trim() || null,
         payment_method: pagamento,
         change_for:
           pagamento === "Dinheiro" && troco.trim() ? troco.trim() : null,
@@ -204,18 +240,27 @@ export default function Checkout() {
 
     const msg = [
       `*NOVO PEDIDO — ${STORE.name.toUpperCase()}*`,
+      !situacao.aberta
+        ? `⚠️ Chegou com a loja fechada (${situacao.motivo}) — combinar previsão com o cliente.`
+        : "",
       ``,
       linhas,
       ``,
       `Subtotal: ${formatBRL(subtotal)}`,
       descontoTotal > 0 ? `Desconto: -${formatBRL(descontoTotal)}` : "",
-      `Entrega: ${formatBRL(taxaEntrega)}`,
+      tipoEntrega === "retirada"
+        ? `Entrega: retirada na loja`
+        : `Entrega: ${formatBRL(taxaEntrega)}`,
       `*Total: ${formatBRL(total)}*`,
       ``,
       `*Cliente:* ${nome.trim()}`,
       telefone.trim() ? `*Telefone:* ${telefone.trim()}` : "",
-      `*Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
-      referencia.trim() ? `*Referência:* ${referencia.trim()}` : "",
+      tipoEntrega === "retirada"
+        ? `*Retirada na loja*`
+        : `*Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
+      tipoEntrega === "entrega" && referencia.trim()
+        ? `*Referência:* ${referencia.trim()}`
+        : "",
       ``,
       `*Pagamento:* ${pagamento}${
         pagamento === "Dinheiro" && troco.trim()
@@ -244,14 +289,26 @@ export default function Checkout() {
           <p className="confirmacao-texto">
             {"Já fomos buscar seu açaí no canto mais gelado do freezer "}
             {"\u{1F9CA}"} Total de{" "}
-            <strong>{formatBRL(confirmado.total)}</strong> — pagamento na
-            entrega ({pagamento}
+            <strong>{formatBRL(confirmado.total)}</strong> —{" "}
+            {tipoEntrega === "retirada" ? "pagamento na retirada" : "pagamento na entrega"}{" "}
+            ({pagamento}
             {pagamento === "Dinheiro" && troco.trim()
               ? `, troco para ${troco.trim()}`
               : ""}
-            ). {"Avisamos no seu WhatsApp quando sair pra entrega! "}
+            ).{" "}
+            {tipoEntrega === "retirada"
+              ? "Avisamos no seu WhatsApp quando estiver pronto! "
+              : "Avisamos no seu WhatsApp quando sair pra entrega! "}
             {"\u{1F6F5}"}
           </p>
+          <p className="confirmacao-texto" style={{ marginTop: 4 }}>
+            {"⏱️"} {previsaoPedido(situacao, tipoEntrega)}
+          </p>
+          {tipoEntrega === "retirada" && (
+            <p className="confirmacao-texto" style={{ marginTop: 4 }}>
+              {"\u{1F3EA}"} {config.pickup.address}
+            </p>
+          )}
           {pagamento === "Pix" && (config.contact.pix_key || STORE.pixKey) && (
             <BlocoPix
               total={confirmado.total}
@@ -279,63 +336,23 @@ export default function Checkout() {
     );
   }
 
-  if (!situacao.aberta) {
-    return (
-      <div className="checkout">
-        <div className="confirmacao fechado-card">
-          <div className="fechado-icone">
-            <svg viewBox="0 0 24 24" width="40" height="40" fill="none"
-              stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 7v5l3 2" />
-            </svg>
-          </div>
-          <h1>Estamos fechados</h1>
-          <p className="confirmacao-texto">{situacao.motivo}</p>
-          <p className="confirmacao-texto" style={{ marginTop: 8 }}>
-            Seu carrinho fica guardado — é só voltar quando a gente abrir.
-          </p>
-          <div className="confirmacao-acoes">
-            <Link href="/" className="btn-principal" style={{ maxWidth: 260 }}>
-              Voltar ao cardápio
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!situacao.aberta) {
-    return (
-      <div className="checkout">
-        <div className="fechado-card">
-          <div className="fechado-emoji">{"\u{1F634}"}</div>
-          <h1>Estamos fechados</h1>
-          <p className="fechado-motivo">{situacao.motivo}</p>
-          {situacao.reabre && (
-            <p className="fechado-reabre">
-              {"\u{1F552}"} {situacao.reabre}
-            </p>
-          )}
-          <p className="fechado-obs">
-            Seu carrinho fica guardado — é só voltar quando abrirmos que o
-            açaí está garantido. {"\u{1F49C}"}
-          </p>
-          <Link href="/" className="btn-principal" style={{ maxWidth: 260, margin: "18px auto 0" }}>
-            Voltar ao cardápio
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="checkout">
       <Link href="/" className="voltar">
         ← Voltar ao cardápio
       </Link>
       <h1>Fechar pedido</h1>
-      <p className="sub">Entregamos na sua porta. Preencha os dados abaixo.</p>
+      <p className="sub">Escolha como quer receber e preencha os dados abaixo.</p>
+
+      {!situacao.aberta && (
+        <div className="aviso-fechado">
+          <span className="aviso-fechado-icone">{"\u{1F634}"}</span>
+          <div>
+            <h2>Estamos fechados agora</h2>
+            <p>{previsaoPedido(situacao, tipoEntrega)}</p>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="bloco">
@@ -370,29 +387,34 @@ export default function Checkout() {
             )}
             {descontoCupom > 0 && (
               <div className="resumo-item" style={{ color: "var(--roxo)" }}>
-                <span>Cupom {cupomAplicado?.code}</span>
+                <span>Cupom {cupomAplicadoCode}</span>
                 <span>-{formatBRL(descontoCupom)}</span>
               </div>
             )}
             <div className="resumo-item">
               <span>
-                Entrega
-                {porBairro && bairroSelecionado
+                {tipoEntrega === "retirada" ? "Retirada na loja" : "Entrega"}
+                {tipoEntrega === "entrega" && porBairro && bairroSelecionado
                   ? ` (${bairroSelecionado.name})`
-                  : porKm && kmInfo
+                  : tipoEntrega === "entrega" && porKm && kmInfo
                     ? ` (~${kmInfo.km.toFixed(1).replace(".", ",")} km)`
                     : ""}
               </span>
               <span>
-                {porBairro && !bairroSelecionado
-                  ? "escolha o bairro"
-                  : formatBRL(taxaEntrega)}
+                {tipoEntrega === "retirada"
+                  ? "Grátis"
+                  : porBairro && !bairroSelecionado
+                    ? "escolha o bairro"
+                    : formatBRL(taxaEntrega)}
               </span>
             </div>
             <div className="resumo-item" style={{ fontWeight: 700 }}>
               <span>Total</span>
               <span>{formatBRL(total)}</span>
             </div>
+            <p className="km-resultado" style={{ marginTop: 6 }}>
+              {"⏱️"} {previsaoPedido(situacao, tipoEntrega)}
+            </p>
           </div>
 
           <div className="bloco">
@@ -410,11 +432,48 @@ export default function Checkout() {
                 Aplicar
               </button>
             </div>
-            {cupomAplicado && (
-              <p className="cupom-ok">{cupomAplicado.msg}</p>
+            {cupomAplicadoCode && cupomResultado?.ok && (
+              <p className="cupom-ok">{cupomResultado.msg}</p>
+            )}
+            {cupomAplicadoCode && !cupomResultado?.ok && (
+              <p className="cupom-erro">
+                Cupom {cupomAplicadoCode} deixou de valer:{" "}
+                {cupomResultado?.msg || "não é mais válido pra esse carrinho."}
+              </p>
             )}
             {cupomErro && <p className="cupom-erro">{cupomErro}</p>}
           </div>
+
+          {pickupHabilitado && (
+            <div className="bloco">
+              <h2>Como você quer receber?</h2>
+              <div className="pill-group">
+                <button
+                  type="button"
+                  className={`pill ${tipoEntrega === "entrega" ? "ativo" : ""}`}
+                  onClick={() => setTipoEntrega("entrega")}
+                >
+                  Entrega
+                </button>
+                <button
+                  type="button"
+                  className={`pill ${tipoEntrega === "retirada" ? "ativo" : ""}`}
+                  onClick={() => setTipoEntrega("retirada")}
+                >
+                  Retirar na loja
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tipoEntrega === "retirada" ? (
+            <div className="bloco">
+              <h2>Retirada na loja</h2>
+              <p className="km-resultado">
+                {"\u{1F3EA}"} {config.pickup.address}
+              </p>
+            </div>
+          ) : null}
 
           <div className="bloco">
             <h2>Seus dados</h2>
@@ -440,84 +499,86 @@ export default function Checkout() {
             </div>
           </div>
 
-          <div className="bloco">
-            <h2>Endereço de entrega</h2>
-            <div className="duas-colunas">
-              <div className="campo">
-                <label htmlFor="rua">Rua *</label>
-                <input
-                  id="rua"
-                  value={rua}
-                  onChange={(e) => setRua(e.target.value)}
-                  onBlur={() => setRua(capitalizarEndereco(rua))}
-                  placeholder="Rua / Avenida"
-                />
+          {tipoEntrega === "entrega" && (
+            <div className="bloco">
+              <h2>Endereço de entrega</h2>
+              <div className="duas-colunas">
+                <div className="campo">
+                  <label htmlFor="rua">Rua *</label>
+                  <input
+                    id="rua"
+                    value={rua}
+                    onChange={(e) => setRua(e.target.value)}
+                    onBlur={() => setRua(capitalizarEndereco(rua))}
+                    placeholder="Rua / Avenida"
+                  />
+                </div>
+                <div className="campo">
+                  <label htmlFor="numero">Número *</label>
+                  <input
+                    id="numero"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    placeholder="123"
+                  />
+                </div>
               </div>
               <div className="campo">
-                <label htmlFor="numero">Número *</label>
-                <input
-                  id="numero"
-                  value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
-                  placeholder="123"
-                />
-              </div>
-            </div>
-            <div className="campo">
-              <label htmlFor="bairro">Bairro *</label>
-              {porBairro ? (
-                <select
-                  id="bairro"
-                  value={bairro}
-                  onChange={(e) => setBairro(e.target.value)}
-                  className="select-bairro"
-                >
-                  <option value="">Escolha o bairro…</option>
-                  {bairros.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name} — entrega {formatBRL(b.fee)}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  id="bairro"
-                  value={bairro}
-                  onChange={(e) => setBairro(e.target.value)}
-                  placeholder="Bairro"
-                />
-              )}
-            </div>
-            {porKm && (
-              <div className="km-bloco">
-                <button
-                  className="btn-suave"
-                  onClick={calcularPorLocalizacao}
-                  disabled={calculandoKm}
-                >
-                  {calculandoKm
-                    ? "Calculando…"
-                    : `${"\u{1F4CD}"} Calcular entrega pela minha localização`}
-                </button>
-                {kmInfo && (
-                  <p className="km-resultado">
-                    Aprox. {kmInfo.km.toFixed(1).replace(".", ",")} km —
-                    entrega {formatBRL(kmInfo.taxa)}
-                  </p>
+                <label htmlFor="bairro">Bairro *</label>
+                {porBairro ? (
+                  <select
+                    id="bairro"
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    className="select-bairro"
+                  >
+                    <option value="">Escolha o bairro…</option>
+                    {bairros.map((b) => (
+                      <option key={b.id} value={b.name}>
+                        {b.name} — entrega {formatBRL(b.fee)}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    id="bairro"
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    placeholder="Bairro"
+                  />
                 )}
-                {erroKm && <p className="km-erro">{erroKm}</p>}
               </div>
-            )}
-            <div className="campo">
-              <label htmlFor="referencia">Ponto de referência (opcional)</label>
-              <input
-                id="referencia"
-                value={referencia}
-                onChange={(e) => setReferencia(e.target.value)}
-                placeholder="Perto de..."
-              />
+              {porKm && (
+                <div className="km-bloco">
+                  <button
+                    className="btn-suave"
+                    onClick={calcularPorLocalizacao}
+                    disabled={calculandoKm}
+                  >
+                    {calculandoKm
+                      ? "Calculando…"
+                      : `${"\u{1F4CD}"} Calcular entrega pela minha localização`}
+                  </button>
+                  {kmInfo && (
+                    <p className="km-resultado">
+                      Aprox. {kmInfo.km.toFixed(1).replace(".", ",")} km —
+                      entrega {formatBRL(kmInfo.taxa)}
+                    </p>
+                  )}
+                  {erroKm && <p className="km-erro">{erroKm}</p>}
+                </div>
+              )}
+              <div className="campo">
+                <label htmlFor="referencia">Ponto de referência (opcional)</label>
+                <input
+                  id="referencia"
+                  value={referencia}
+                  onChange={(e) => setReferencia(e.target.value)}
+                  placeholder="Perto de..."
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="bloco">
             <h2>Pagamento</h2>
@@ -530,6 +591,9 @@ export default function Checkout() {
                     checked={pagamento === opcao}
                     onChange={() => setPagamento(opcao)}
                   />
+                  <span className="opcao-icone">
+                    <IconePagamento tipo={opcao} />
+                  </span>
                   {opcao}
                 </label>
               )

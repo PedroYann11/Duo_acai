@@ -18,7 +18,9 @@ import {
   registrarVendaBalcao,
   listarVendedores,
   adicionarVendedor,
+  atualizarVendedor,
   removerVendedor,
+  resumoDoMes,
   type Vendedor,
   listarProdutosAdmin,
   salvarProduto,
@@ -43,6 +45,8 @@ import {
   apagarPedido,
   aoChegarPedido,
   resumo,
+  clientesInativos,
+  type ClienteInativo,
   STATUS_LABEL,
   PROXIMO_STATUS,
   linkWhatsApp,
@@ -233,7 +237,7 @@ function Painel() {
       { id: "produtos", rotulo: "Produtos", icone: "\u{1F9CB}" },
       { id: "loja", rotulo: "Loja", icone: "\u{1F3EA}" },
       { id: "promocoes", rotulo: "Promoções", icone: "\u{1F3F7}" },
-      { id: "vendedores", rotulo: "Equipe", icone: "\u{1F465}" },
+      { id: "vendedores", rotulo: "Funcionários", icone: "\u{1F465}" },
     ];
 
   return (
@@ -311,7 +315,9 @@ function Painel() {
       {aba === "pedidos" && (
         <Pedidos pedidos={pedidos} onMudou={recarregar} />
       )}
-      {aba === "vendedores" && <Vendedores avisar={avisar} />}
+      {aba === "vendedores" && (
+        <Vendedores avisar={avisar} pedidos={pedidos} />
+      )}
       {aba === "produtos" && <Produtos avisar={avisar} />}
       {aba === "loja" && <Loja avisar={avisar} />}
       {aba === "promocoes" && <Promocoes avisar={avisar} />}
@@ -498,6 +504,12 @@ const CORES_GRAFICO = ["#61174c", "#f2c230", "#a8c36b", "#c7a3dc", "#5a3a22"];
 function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
   const r = useMemo(() => resumo(pedidos), [pedidos]);
   const maxQtd = r.ranking.length ? r.ranking[0].qtd : 1;
+  const [diasLimite, setDiasLimite] = useState("15");
+  const limiteNum = parseInt(diasLimite) || 15;
+  const inativos = useMemo(
+    () => clientesInativos(pedidos, limiteNum),
+    [pedidos, limiteNum]
+  );
 
   return (
     <>
@@ -592,6 +604,47 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
             })}
         </div>
       )}
+
+      <div className="bloco">
+        <h2>Clientes sem pedir há um tempo</h2>
+        <div className="campo" style={{ maxWidth: 220 }}>
+          <label>Avisar quem não pede há quantos dias?</label>
+          <input
+            inputMode="numeric"
+            value={diasLimite}
+            onChange={(e) => setDiasLimite(e.target.value)}
+          />
+        </div>
+        {inativos.length === 0 && (
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+            Ninguém se encaixa nesse período (ou ainda não há pedidos com
+            telefone suficientes).
+          </p>
+        )}
+        {inativos.map((c) => {
+          const primeiroNome = c.nome.split(" ")[0];
+          const msg = `Oi ${primeiroNome}! Aqui é da Duo Açaí \u{1F49C} Notamos que faz ${c.diasSemPedir} dias que você não pede com a gente... bateu aquela vontade de um açaí geladinho? Estamos com tudo pronto pra te atender! \u{1FAD0}`;
+          return (
+            <div className="hist-item" key={c.telefone}>
+              <div style={{ flex: 1 }}>
+                <strong>{c.nome}</strong>
+                <div style={{ fontSize: "0.82rem", color: "var(--texto-suave)" }}>
+                  {c.diasSemPedir} dias sem pedir · {c.totalPedidos} pedido(s)
+                  no histórico
+                </div>
+              </div>
+              <a
+                className="btn-suave"
+                href={linkWhatsApp(c.telefone, msg)}
+                target="_blank"
+                rel="noopener"
+              >
+                Notificar
+              </a>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -754,10 +807,19 @@ function GraficoDonut({
 
 /* ================= Vendedores ================= */
 
-function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
+function Vendedores({
+  avisar,
+  pedidos,
+}: {
+  avisar: (msg: string) => void;
+  pedidos: Pedido[];
+}) {
+  const [modo, setModo] = useState<"dono" | "funcionario">("dono");
   const [lista, setLista] = useState<Vendedor[]>([]);
   const [nome, setNome] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [selecionado, setSelecionado] = useState<string | null>(null);
 
   const carregar = () => listarVendedores().then(setLista);
   useEffect(() => {
@@ -771,7 +833,7 @@ function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
       await adicionarVendedor(nome);
       setNome("");
       carregar();
-      avisar("Vendedor adicionado ✓");
+      avisar("Funcionário adicionado ✓");
     } catch (e: any) {
       avisar(e.message || "Erro ao adicionar");
     } finally {
@@ -779,10 +841,98 @@ function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
     }
   };
 
+  if (modo === "funcionario") {
+    const escolhido = lista.find((v) => v.id === selecionado) || null;
+    const meta = escolhido ? resumoDoMes(pedidos, escolhido.name) : null;
+    const metaValor = escolhido?.monthly_goal || 0;
+    const progresso =
+      metaValor > 0 && meta ? Math.min(100, (meta.receita / metaValor) * 100) : 0;
+
+    return (
+      <>
+        <div className="pill-group" style={{ marginBottom: 14 }}>
+          <button className="pill" onClick={() => setModo("dono")}>
+            {"\u{1F511}"} Sou o dono
+          </button>
+          <button className="pill ativo">{"\u{1F464}"} Sou funcionário</button>
+        </div>
+
+        {!escolhido ? (
+          <div className="bloco">
+            <h2>Quem é você?</h2>
+            <div className="pill-group">
+              {lista.map((v) => (
+                <button
+                  key={v.id}
+                  className="pill"
+                  onClick={() => setSelecionado(v.id)}
+                >
+                  {v.name}
+                </button>
+              ))}
+              {lista.length === 0 && (
+                <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+                  Ninguém cadastrado ainda — peça pro dono te adicionar aqui.
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bloco">
+            <button
+              className="btn-suave"
+              style={{ marginBottom: 14 }}
+              onClick={() => setSelecionado(null)}
+            >
+              {"\u{2190}"} Trocar
+            </button>
+            <h2>Oi, {escolhido.name.split(" ")[0]}!</h2>
+            {escolhido.role && (
+              <p style={{ color: "var(--texto-suave)", marginBottom: 10 }}>
+                {escolhido.role}
+              </p>
+            )}
+            <div className="kpis">
+              <div className="kpi destaque">
+                <div className="rotulo">Vendas do mês</div>
+                <div className="valor">{formatBRL(meta?.receita || 0)}</div>
+                <div className="detalhe">{meta?.qtd || 0} venda(s)</div>
+              </div>
+              {metaValor > 0 && (
+                <div className="kpi">
+                  <div className="rotulo">Meta do mês</div>
+                  <div className="valor">{formatBRL(metaValor)}</div>
+                  <div className="detalhe">{progresso.toFixed(0)}% atingido</div>
+                </div>
+              )}
+            </div>
+            {metaValor > 0 && (
+              <div className="barra-trilho" style={{ marginTop: 14 }}>
+                <div className="barra-fill" style={{ width: `${progresso}%` }} />
+              </div>
+            )}
+            {metaValor === 0 && (
+              <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem", marginTop: 10 }}>
+                O dono ainda não definiu uma meta do mês pra você.
+              </p>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
+      <div className="pill-group" style={{ marginBottom: 14 }}>
+        <button className="pill ativo">{"\u{1F511}"} Sou o dono</button>
+        <button className="pill" onClick={() => setModo("funcionario")}>
+          {"\u{1F464}"} Sou funcionário
+        </button>
+      </div>
+
       <div className="bloco">
-        <h2>Novo vendedor</h2>
+        <h2>Novo funcionário</h2>
         <div className="campo">
           <label htmlFor="novo-vendedor">Nome</label>
           <input
@@ -790,7 +940,7 @@ function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && adicionar()}
-            placeholder="Nome do vendedor"
+            placeholder="Nome do funcionário"
           />
         </div>
         <button className="btn-principal" onClick={adicionar}>
@@ -801,20 +951,14 @@ function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
       <div className="bloco">
         <h2>Equipe</h2>
         {lista.map((v) => (
-          <div className="hist-item" key={v.id}>
-            <span>{v.name}</span>
-            <button
-              className="btn-x"
-              onClick={async () => {
-                if (confirm(`Remover ${v.name}? As vendas antigas continuam no histórico.`)) {
-                  await removerVendedor(v.id);
-                  carregar();
-                }
-              }}
-            >
-              remover
-            </button>
-          </div>
+          <FuncionarioLinha
+            key={v.id}
+            vendedor={v}
+            aberto={editando === v.id}
+            onEditar={() => setEditando(editando === v.id ? null : v.id)}
+            onMudou={carregar}
+            avisar={avisar}
+          />
         ))}
         {lista.length === 0 && (
           <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
@@ -823,6 +967,114 @@ function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
         )}
       </div>
     </>
+  );
+}
+
+function FuncionarioLinha({
+  vendedor,
+  aberto,
+  onEditar,
+  onMudou,
+  avisar,
+}: {
+  vendedor: Vendedor;
+  aberto: boolean;
+  onEditar: () => void;
+  onMudou: () => void;
+  avisar: (msg: string) => void;
+}) {
+  const [role, setRole] = useState(vendedor.role || "");
+  const [salary, setSalary] = useState(
+    vendedor.salary != null ? String(vendedor.salary).replace(".", ",") : ""
+  );
+  const [meta, setMeta] = useState(
+    vendedor.monthly_goal != null
+      ? String(vendedor.monthly_goal).replace(".", ",")
+      : ""
+  );
+  const [salvando, setSalvando] = useState(false);
+
+  const salvar = async () => {
+    setSalvando(true);
+    try {
+      await atualizarVendedor(vendedor.id, {
+        role: role.trim() || null,
+        salary: salary.trim() ? parseFloat(salary.replace(",", ".")) : null,
+        monthly_goal: meta.trim() ? parseFloat(meta.replace(",", ".")) : null,
+      });
+      avisar("Funcionário atualizado ✓");
+      onMudou();
+    } catch {
+      avisar("Erro ao salvar");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="produto-admin">
+      <div className="hist-item">
+        <span>
+          {vendedor.name}
+          {vendedor.role ? ` · ${vendedor.role}` : ""}
+        </span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn-suave" onClick={onEditar}>
+            {aberto ? "Fechar" : "Editar"}
+          </button>
+          <button
+            className="btn-x"
+            onClick={async () => {
+              if (
+                confirm(
+                  `Remover ${vendedor.name}? As vendas antigas continuam no histórico.`
+                )
+              ) {
+                await removerVendedor(vendedor.id);
+                onMudou();
+              }
+            }}
+          >
+            remover
+          </button>
+        </div>
+      </div>
+      {aberto && (
+        <div className="produto-admin-form">
+          <div className="campo">
+            <label>Cargo/função</label>
+            <input
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="Ex.: Atendente, Entregador"
+            />
+          </div>
+          <div className="duas-colunas">
+            <div className="campo">
+              <label>Salário (R$)</label>
+              <input
+                inputMode="decimal"
+                value={salary}
+                onChange={(e) => setSalary(e.target.value)}
+                placeholder="1500,00"
+              />
+            </div>
+            <div className="campo">
+              <label>Meta de vendas do mês (R$)</label>
+              <input
+                inputMode="decimal"
+                value={meta}
+                onChange={(e) => setMeta(e.target.value)}
+                placeholder="5000,00"
+              />
+            </div>
+          </div>
+          <button className="btn-principal" onClick={salvar}>
+            {salvando ? "Salvando…" : "Salvar"}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -890,6 +1142,7 @@ function CartaoPedido({
       <div style={{ flex: 1 }}>
         <div>
           <strong>{NOME_CANAL[pedido.channel] || pedido.channel}</strong>
+          {pedido.delivery_type === "retirada" ? " · \u{1F3EA} retirada" : ""}
           {pedido.seller_name ? ` · vend. ${pedido.seller_name}` : ""}
           {pedido.customer_name ? ` · ${pedido.customer_name}` : ""} ·{" "}
           {formatBRL(Number(pedido.total))} · {pedido.payment_method}
@@ -899,7 +1152,14 @@ function CartaoPedido({
             .map((i) => `${i.qty}x ${i.product_name.replace("Duo ", "")}`)
             .join(", ")}
         </div>
-        {!compacto && pedido.street && (
+        {!compacto && pedido.delivery_type === "retirada" && (
+          <div style={{ fontSize: "0.85rem", color: "var(--texto-suave)", marginTop: 2 }}>
+            {"\u{1F3EA}"} Cliente vem retirar na loja
+            {pedido.customer_phone ? ` · 📞 ${pedido.customer_phone}` : ""}
+            {pedido.change_for ? ` · troco p/ ${pedido.change_for}` : ""}
+          </div>
+        )}
+        {!compacto && pedido.delivery_type !== "retirada" && pedido.street && (
           <div style={{ fontSize: "0.85rem", color: "var(--texto-suave)", marginTop: 2 }}>
             📍 {pedido.street}, {pedido.number} — {pedido.neighborhood}
             {pedido.reference ? ` (${pedido.reference})` : ""}
@@ -1119,6 +1379,7 @@ function CartaoProduto({
   const [nome, setNome] = useState(produto.name);
   const [descricao, setDescricao] = useState(produto.description);
   const [preco, setPreco] = useState(produto.price.toFixed(2).replace(".", ","));
+  const [destaque, setDestaque] = useState(produto.highlight_label || "");
   const [salvando, setSalvando] = useState(false);
   const [mudandoDisp, setMudandoDisp] = useState(false);
 
@@ -1134,6 +1395,7 @@ function CartaoProduto({
         name: nome.trim(),
         description: descricao.trim(),
         price: valor,
+        highlight_label: destaque.trim() || null,
       });
       avisar("Produto salvo");
       onMudou();
@@ -1224,6 +1486,14 @@ function CartaoProduto({
               inputMode="decimal"
               value={preco}
               onChange={(e) => setPreco(e.target.value)}
+            />
+          </div>
+          <div className="campo">
+            <label>Selo de destaque (opcional)</label>
+            <input
+              value={destaque}
+              onChange={(e) => setDestaque(e.target.value)}
+              placeholder="Ex.: DUO DO MÊS, MAIS PEDIDO, NOVIDADE"
             />
           </div>
           <div className="admin-acoes">
@@ -1646,6 +1916,50 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
         )}
       </div>
 
+      {/* -------- Retirada na loja -------- */}
+      <div className="bloco">
+        <h2>Retirada na loja</h2>
+        <div className="pill-group" style={{ marginBottom: 12 }}>
+          <button
+            className={`pill ${cfg.pickup.enabled ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, pickup: { ...cfg.pickup, enabled: true } })
+            }
+          >
+            Permitir retirada
+          </button>
+          <button
+            className={`pill ${!cfg.pickup.enabled ? "ativo" : ""}`}
+            onClick={() =>
+              setCfg({ ...cfg, pickup: { ...cfg.pickup, enabled: false } })
+            }
+          >
+            Só entrega
+          </button>
+        </div>
+        {cfg.pickup.enabled && (
+          <div className="campo">
+            <label>Endereço mostrado pro cliente</label>
+            <input
+              value={cfg.pickup.address}
+              onChange={(e) =>
+                setCfg({
+                  ...cfg,
+                  pickup: { ...cfg.pickup, address: e.target.value },
+                })
+              }
+              placeholder="Rua José Marrocos, 145 — Pinto Madeira, Crato/CE"
+            />
+          </div>
+        )}
+        <button
+          className="btn-principal"
+          onClick={() => salvar("pickup", cfg.pickup, "Retirada salva")}
+        >
+          Salvar retirada
+        </button>
+      </div>
+
       {/* -------- Horários -------- */}
       <div className="bloco">
         <h2>Horários de funcionamento</h2>
@@ -2045,6 +2359,21 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
   const [descTipo, setDescTipo] = useState<"percent" | "fixed">("fixed");
   const [descValor, setDescValor] = useState("");
   const [minPedido, setMinPedido] = useState("");
+  // banner (pré-preenchido com sugestão, editável)
+  const [bannerTexto, setBannerTexto] = useState("");
+
+  const sugestaoBanner =
+    tipo === "combo"
+      ? `\u{1F525} Hoje: leve ${qty || "X"} por ${
+          preco ? formatBRL(parseFloat(preco.replace(",", ".")) || 0) : "Y"
+        }!`
+      : `\u{1F3F7} Use o cupom ${code || "XXXX"} e ganhe ${
+          descValor
+            ? descTipo === "percent"
+              ? `${descValor}%`
+              : formatBRL(parseFloat(descValor.replace(",", ".")) || 0)
+            : "desconto"
+        } de desconto!`;
 
   const carregar = async () => {
     setLista(await listarPromocoes());
@@ -2073,6 +2402,7 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
           discount_value: null,
           min_order: 0,
           active: true,
+          banner_text: (bannerTexto.trim() || sugestaoBanner).trim() || null,
         });
       } else {
         const v = parseFloat(descValor.replace(",", "."));
@@ -2090,6 +2420,7 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
           discount_value: v,
           min_order: parseFloat(minPedido.replace(",", ".")) || 0,
           active: true,
+          banner_text: (bannerTexto.trim() || sugestaoBanner).trim() || null,
         });
       }
       setNome("");
@@ -2097,6 +2428,7 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
       setCode("");
       setDescValor("");
       setMinPedido("");
+      setBannerTexto("");
       carregar();
       avisar("Promoção criada");
     } catch (e: any) {
@@ -2215,6 +2547,20 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
           </>
         )}
 
+        <div className="campo">
+          <label>Banner no topo do site (opcional, sugerimos um texto)</label>
+          <input
+            value={bannerTexto}
+            onChange={(e) => setBannerTexto(e.target.value)}
+            placeholder={sugestaoBanner}
+          />
+        </div>
+        <p className="aviso" style={{ textAlign: "left", marginBottom: 10 }}>
+          Enquanto essa promoção estiver ativa, esse texto aparece sozinho na
+          faixa do topo do site — não precisa mexer no banner manual da aba
+          Loja.
+        </p>
+
         <button className="btn-principal" onClick={criar}>
           Criar promoção
         </button>
@@ -2241,6 +2587,11 @@ function Promocoes({ avisar }: { avisar: (msg: string) => void }) {
                         : formatBRL(p.discount_value || 0)
                     }${p.min_order ? ` · mín. ${formatBRL(p.min_order)}` : ""}`}
               </div>
+              {p.active && p.banner_text && (
+                <div style={{ fontSize: "0.8rem", color: "var(--roxo)", marginTop: 2 }}>
+                  {"\u{1F4E3}"} Banner: {p.banner_text}
+                </div>
+              )}
             </div>
             <button
               className={`pill ${p.active ? "ativo" : ""}`}

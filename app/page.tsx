@@ -2,10 +2,13 @@ import { STORE } from "@/lib/store";
 import { Header, MenuGrid } from "@/components/Shop";
 import { StoreStatus } from "@/components/StoreStatus";
 import { Hero } from "@/components/Hero";
+import { HorarioTexto } from "@/components/HorarioTexto";
+import { PreTela } from "@/components/PreTela";
 
 export default function Home() {
   return (
     <>
+      <PreTela />
       <Header />
       <StoreStatus />
 
@@ -27,19 +30,22 @@ export default function Home() {
       <main className="menu container" id="cardapio">
         <h2 className="menu-title">Escolha o seu Duo</h2>
         <p className="menu-sub">
-          A partir de R$ 18,90 · {STORE.openHours}
+          A partir de R$ 18,90 · <HorarioTexto />
         </p>
         <MenuGrid />
       </main>
 
       <footer className="footer">
         <div className="container">
-          <span className="logo">
-            DUO
-            <span>O açaí da garrafa</span>
+          <span className="logo footer-logo">
+            <img src="/icone-garrafa.png" alt="" className="logo-icone" />
+            <span className="logo-texto">
+              DUO
+              <span>O açaí da garrafa</span>
+            </span>
           </span>
           <p>
-            {STORE.openHours} ·{" "}
+            <HorarioTexto /> ·{" "}
             <a
               href={`https://instagram.com/${STORE.instagram}`}
               target="_blank"

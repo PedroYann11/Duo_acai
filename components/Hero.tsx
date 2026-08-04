@@ -52,14 +52,13 @@ export function Hero() {
 
         <div className="hero-garrafa" ref={bottleRef} aria-hidden="true">
           <BottleFill />
-          <span className="garrafa-legenda">todos os sabores, uma garrafa</span>
         </div>
       </div>
     </section>
   );
 }
 
-/* Garrafinha SVG enchendo com os 5 sabores + açaí por cima */
+/* Garrafinha SVG (formato "leiteira" 300ml, quadrada) enchendo com os 5 sabores + açaí por cima */
 function BottleFill() {
   return (
     <svg
@@ -69,79 +68,79 @@ function BottleFill() {
     >
       <defs>
         <clipPath id="corpo-clip">
-          {/* corpo da garrafa com ombros arredondados */}
-          <path d="M35 80 Q35 68 47 66 L93 66 Q105 68 105 80 L105 262 Q105 274 93 276 L47 276 Q35 274 35 262 Z" />
+          {/* funil contínuo da tampa até o corpo, do mesmo tamanho da camada de açaí (a de cima) */}
+          <path d="M41 32 Q26 60 24 87 L24 257 Q24 274 38 276 L102 276 Q116 274 116 257 L116 87 Q114 60 99 32 Z" />
         </clipPath>
       </defs>
 
-      {/* tampa */}
-      <rect x="48" y="18" width="44" height="20" rx="5" fill="#6d2a91" />
-      <rect x="48" y="24" width="44" height="3" fill="#5a2178" opacity="0.6" />
-      {/* gargalo */}
-      <rect x="55" y="38" width="30" height="28" rx="4" fill="#e9e2f2" opacity="0.55" />
-
-      {/* camadas dos sabores (dentro do clip do corpo) */}
+      {/* camadas dos sabores (dentro do clip do corpo); a de cima (açaí) ocupa exatamente o funil */}
       <g clipPath="url(#corpo-clip)">
         {/* vidro vazio */}
-        <rect x="35" y="66" width="70" height="210" fill="#efe8f5" opacity="0.5" />
-        {/* cada camada tem 35px e "cai" na sua vez */}
-        <rect className="camada c1" x="35" y="241" width="70" height="35" fill="#f2c230" />
-        <rect className="camada c2" x="35" y="206" width="70" height="35" fill="#f6ecda" />
-        <rect className="camada c3" x="35" y="171" width="70" height="35" fill="#5a3a22" />
-        <rect className="camada c4" x="35" y="136" width="70" height="35" fill="#a8c36b" />
-        <rect className="camada c5" x="35" y="101" width="70" height="35" fill="#d8b98a" />
-        <rect className="camada c6" x="35" y="66" width="70" height="35" fill="#4a1140" />
-        {/* ondinhas entre camadas */}
+        <rect x="24" y="32" width="92" height="244" fill="#efe8f5" opacity="0.5" />
+        {/* cada camada tem 34px e "cai" na sua vez; a última (mais no fundo) sobra até a base */}
+        <rect className="camada c1" x="24" y="223" width="92" height="60" fill="#f2c230" />
+        <rect className="camada c2" x="24" y="189" width="92" height="34" fill="#f6ecda" />
+        <rect className="camada c3" x="24" y="155" width="92" height="34" fill="#5a3a22" />
+        <rect className="camada c4" x="24" y="121" width="92" height="34" fill="#a8c36b" />
+        <rect className="camada c5" x="24" y="87" width="92" height="34" fill="#d8b98a" />
+        <rect className="camada c6" x="24" y="32" width="92" height="55" fill="#4a1140" />
+        {/* ondinha no topo da última camada */}
         <g className="camada c6">
           <path
-            d="M35 101 Q52 95 70 101 T105 101 L105 96 Q88 102 70 96 T35 96 Z"
+            d="M24 87 Q46 81 70 87 T116 87 L116 82 Q94 88 70 82 T24 82 Z"
             fill="#4a1140"
           />
         </g>
         {/* brilho do vidro */}
-        <rect x="42" y="66" width="8" height="210" fill="#ffffff" opacity="0.22" rx="4" />
+        <rect x="31" y="32" width="7" height="244" fill="#ffffff" opacity="0.22" rx="4" />
       </g>
 
-      {/* contorno do corpo + gomos */}
+      {/* contorno: funil contínuo da tampa pro corpo quadrado, terminando junto com a camada de açaí */}
       <path
-        d="M35 80 Q35 68 47 66 L93 66 Q105 68 105 80 L105 262 Q105 274 93 276 L47 276 Q35 274 35 262 Z"
+        d="M41 32 Q26 60 24 87 L24 257 Q24 274 38 276 L102 276 Q116 274 116 257 L116 87 Q114 60 99 32"
         fill="none"
-        stroke="#c7a3dc"
+        stroke="var(--lilas)"
         strokeWidth="2.5"
         opacity="0.8"
       />
-      <g stroke="#c7a3dc" strokeWidth="1.4" opacity="0.35">
-        <line x1="37" y1="120" x2="103" y2="120" />
-        <line x1="37" y1="160" x2="103" y2="160" />
-        <line x1="37" y1="200" x2="103" y2="200" />
-        <line x1="37" y1="240" x2="103" y2="240" />
+
+      {/* gomos: anel na junção do ombro com o corpo, mais 2 aneis no corpo reto */}
+      <g stroke="var(--lilas)" strokeWidth="1.6" opacity="0.45">
+        <line x1="24" y1="87" x2="116" y2="87" />
+        <line x1="24" y1="144" x2="116" y2="144" />
+        <line x1="24" y1="200" x2="116" y2="200" />
       </g>
 
-      {/* rótulo DUO */}
-      <circle cx="70" cy="175" r="27" fill="#fffdf8" opacity="0.95" />
+      {/* tampa: roxa, como a garrafa real; desenhada por cima pra "tampar" a garrafa sem folga */}
+      <rect x="41" y="0" width="58" height="36" rx="8" fill="var(--roxo)" stroke="var(--lilas)" strokeWidth="1.2" opacity="0.95" />
+      <rect x="41" y="26" width="58" height="1.6" fill="var(--acai)" opacity="0.5" />
+
+      {/* rótulo DUO: ícone da garrafa + nome, no gomo do meio */}
+      <circle cx="70" cy="172" r="26" fill="#fffdf8" opacity="0.97" />
+      <circle cx="70" cy="172" r="26" fill="none" stroke="var(--roxo)" strokeWidth="1" opacity="0.25" />
+      <image href="/icone-garrafa.png" x="57" y="149" width="26" height="22" />
       <text
         x="70"
-        y="172"
+        y="184"
         textAnchor="middle"
         fontFamily="Bricolage Grotesque, sans-serif"
         fontWeight="800"
-        fontSize="16"
+        fontSize="12"
         fill="#61174c"
       >
         DUO
       </text>
       <text
         x="70"
-        y="184"
+        y="193"
         textAnchor="middle"
         fontFamily="Instrument Sans, sans-serif"
-        fontWeight="600"
-        fontSize="5"
+        fontWeight="700"
+        fontSize="6"
+        letterSpacing="0.5"
         fill="#7a5a72"
-        textLength="38"
-        lengthAdjust="spacingAndGlyphs"
       >
-        O AÇAÍ DA GARRAFA
+        AÇAÍ
       </text>
     </svg>
   );

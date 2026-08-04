@@ -31,7 +31,9 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         const sb = getSupabase();
         const { data, error } = await sb
           .from("products")
-          .select("slug, name, description, price, image_url, available")
+          .select(
+            "slug, name, description, price, image_url, available, highlight_label"
+          )
           .eq("active", true)
           .order("sort_order");
         if (error || !data || data.length === 0) return; // mantém plano B
@@ -44,6 +46,7 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
             price: Number(p.price),
             image: p.image_url || "/products/" + p.slug + ".jpg",
             available: Boolean(p.available),
+            highlightLabel: p.highlight_label || null,
           }))
         );
       } catch {
