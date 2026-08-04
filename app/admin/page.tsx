@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { STORE, formatBRL } from "@/lib/store";
 import { useProducts } from "@/lib/products-context";
@@ -10,7 +10,10 @@ import {
   CONFIG_PADRAO,
   TEMA_PADRAO,
   aplicarTema,
+  estiloTema,
+  useSettings,
   type ConfigLoja,
+  type Tema,
 } from "@/lib/settings-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
 import {
@@ -157,6 +160,7 @@ export default function Admin() {
 /* ================= Painel ================= */
 
 function Painel() {
+  const { config } = useSettings();
   const [aba, setAba] = useState<
     | "vender"
     | "dashboard"
@@ -234,14 +238,17 @@ function Painel() {
         icone: "\u{1F6F5}",
         badge: pendentes,
       },
-      { id: "produtos", rotulo: "Produtos", icone: "\u{1F9CB}" },
+      { id: "produtos", rotulo: "Produtos", icone: "\u{1F379}" },
       { id: "loja", rotulo: "Loja", icone: "\u{1F3EA}" },
-      { id: "promocoes", rotulo: "Promoções", icone: "\u{1F3F7}" },
+      { id: "promocoes", rotulo: "Promoções", icone: "\u{1F525}" },
       { id: "vendedores", rotulo: "Funcionários", icone: "\u{1F465}" },
     ];
 
   return (
-    <div className="admin-layout">
+    <div
+      className="admin-layout"
+      style={estiloTema(config.temas.admin) as CSSProperties}
+    >
       <aside className="admin-sidebar">
         <div className="admin-logo">
           <img src="/icone-garrafa.png" alt="Duo" />
@@ -523,6 +530,11 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
           <div className="rotulo">7 dias</div>
           <div className="valor">{formatBRL(r.rec7)}</div>
           <div className="detalhe">{r.qtd7} venda(s)</div>
+        </div>
+        <div className="kpi">
+          <div className="rotulo">Mês</div>
+          <div className="valor">{formatBRL(r.recMes)}</div>
+          <div className="detalhe">{r.qtdMes} venda(s)</div>
         </div>
         <div className="kpi">
           <div className="rotulo">Ticket médio</div>
@@ -1639,6 +1651,9 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
   const [cfg, setCfg] = useState<ConfigLoja>(CONFIG_PADRAO);
   const [bairros, setBairros] = useState<BairroAdmin[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [zonaAparencia, setZonaAparencia] = useState<
+    "preTela" | "cardapio" | "admin"
+  >("cardapio");
 
   const carregar = async () => {
     try {
@@ -2045,78 +2060,54 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
 
       {/* -------- Aparência -------- */}
       <div className="bloco">
-        <h2>Aparência do site</h2>
+        <h2>Aparência</h2>
         <p style={{ color: "var(--texto-suave)", fontSize: "0.88rem", marginBottom: 12 }}>
-          Toque em cada cor pra trocar. O site inteiro se adapta sozinho
-          (botões, fundos, letreiro, garrafinha do topo).
+          Cada área tem sua própria paleta — assim dá pra personalizar a
+          pré-tela, o cardápio (site do cliente) e o painel admin
+          separadamente.
         </p>
+        <div className="pill-group" style={{ marginBottom: 14 }}>
+          <button
+            className={`pill ${zonaAparencia === "preTela" ? "ativo" : ""}`}
+            onClick={() => setZonaAparencia("preTela")}
+          >
+            Pré-tela
+          </button>
+          <button
+            className={`pill ${zonaAparencia === "cardapio" ? "ativo" : ""}`}
+            onClick={() => setZonaAparencia("cardapio")}
+          >
+            Cardápio (site)
+          </button>
+          <button
+            className={`pill ${zonaAparencia === "admin" ? "ativo" : ""}`}
+            onClick={() => setZonaAparencia("admin")}
+          >
+            Painel admin
+          </button>
+        </div>
         <div className="cores-grid">
           {(
             [
-              ["acai", "Fundo escuro (topo e rodapé)"],
               ["roxo", "Cor da marca (botões e preços)"],
+              ["acai", "Fundo escuro"],
               ["lilas", "Detalhes claros"],
-              ["creme", "Fundo da página"],
-              ["maracuja", "Destaque (botão amarelo)"],
-            ] as [keyof typeof TEMA_PADRAO, string][]
-          ).map(([chave, rotulo]) => (
-            <label className="cor-item" key={chave}>
-              <input
-                type="color"
-                value={cfg.theme[chave]}
-                onChange={(e) =>
-                  setCfg({
-                    ...cfg,
-                    theme: { ...cfg.theme, [chave]: e.target.value },
-                  })
-                }
-              />
-              <span>{rotulo}</span>
-            </label>
-          ))}
-        </div>
-        <div className="admin-acoes">
-          <button
-            className="btn-principal"
-            style={{ flex: 1 }}
-            onClick={() => salvar("theme", cfg.theme, "Cores salvas")}
-          >
-            Salvar cores
-          </button>
-          <button
-            className="btn-suave"
-            onClick={() => setCfg({ ...cfg, theme: { ...TEMA_PADRAO } })}
-          >
-            Restaurar padrão
-          </button>
-        </div>
-        <p style={{ color: "var(--texto-suave)", fontSize: "0.8rem", marginTop: 10 }}>
-          Depois de salvar, recarregue o site pra ver o resultado. Se salvar
-          "Restaurar padrão", volta ao roxo original da Duo.
-        </p>
-      </div>
-
-      {/* -------- Aparência -------- */}
-      <div className="bloco">
-        <h2>Aparência (cores do site)</h2>
-        <div className="cores-grid">
-          {(
-            [
-              ["roxo", "Roxo principal"],
-              ["acai", "Açaí escuro (fundos)"],
-              ["maracuja", "Amarelo destaque"],
               ["creme", "Fundo claro"],
-              ["lilas", "Lilás (detalhes)"],
-            ] as const
+              ["maracuja", "Destaque"],
+            ] as [keyof Tema, string][]
           ).map(([chave, rotulo]) => (
             <label className="cor-item" key={chave}>
               <input
                 type="color"
-                value={cfg.theme[chave]}
+                value={cfg.temas[zonaAparencia][chave]}
                 onChange={(e) => {
-                  const novoTema = { ...cfg.theme, [chave]: e.target.value };
-                  setCfg({ ...cfg, theme: novoTema });
-                  aplicarTema(novoTema); // prévia ao vivo no próprio painel
+                  const novoTema = {
+                    ...cfg.temas[zonaAparencia],
+                    [chave]: e.target.value,
+                  };
+                  const novosTemas = { ...cfg.temas, [zonaAparencia]: novoTema };
+                  setCfg({ ...cfg, temas: novosTemas });
+                  if (zonaAparencia === "cardapio") aplicarTema(novoTema);
                 }}
               />
               <span>{rotulo}</span>
@@ -2127,23 +2118,28 @@ function Loja({ avisar }: { avisar: (msg: string) => void }) {
           <button
             className="btn-principal"
             style={{ flex: 1 }}
-            onClick={() => salvar("theme", cfg.theme, "Cores salvas")}
+            onClick={() => salvar("temas", cfg.temas, "Cores salvas")}
           >
             Salvar cores
           </button>
           <button
             className="btn-suave"
             onClick={() => {
-              const padrao = { ...TEMA_PADRAO };
-              setCfg({ ...cfg, theme: padrao });
-              aplicarTema(padrao);
+              const novosTemas = {
+                ...cfg.temas,
+                [zonaAparencia]: { ...TEMA_PADRAO },
+              };
+              setCfg({ ...cfg, temas: novosTemas });
+              if (zonaAparencia === "cardapio") aplicarTema(TEMA_PADRAO);
             }}
           >
             Restaurar padrão
           </button>
         </div>
-        <p className="aviso" style={{ marginTop: 10 }}>
-          A prévia muda aqui na hora; clientes veem depois de salvar.
+        <p style={{ color: "var(--texto-suave)", fontSize: "0.8rem", marginTop: 10 }}>
+          {zonaAparencia === "cardapio"
+            ? "A prévia do cardápio muda aqui na hora; clientes veem depois de salvar."
+            : "Salve e recarregue essa tela pra ver o resultado."}
         </p>
       </div>
 

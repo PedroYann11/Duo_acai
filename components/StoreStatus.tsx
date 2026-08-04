@@ -26,8 +26,8 @@ export function StoreStatus() {
       {!situacao.aberta && (
         <div className="faixa-fechado">
           {situacao.motivo}
-          {situacao.reabre ? ` ${situacao.reabre}.` : ""} Mas pode pedir —
-          preparamos assim que abrirmos!
+          {situacao.reabre ? ` ${situacao.reabre}.` : ""} Porém o seu pedido
+          é bem-vindo, vamos preparar assim que abrirmos!
         </div>
       )}
     </>

@@ -4,7 +4,6 @@ import { CartProvider } from "@/lib/cart";
 import { ProductsProvider } from "@/lib/products-context";
 import { SettingsProvider } from "@/lib/settings-context";
 import { PromoProvider } from "@/lib/promo-context";
-import { ThemeApplier } from "@/components/ThemeApplier";
 import { WhatsAppFlutuante } from "@/components/WhatsAppFlutuante";
 
 export const metadata: Metadata = {
@@ -40,7 +39,6 @@ export default function RootLayout({
       </head>
       <body>
         <SettingsProvider>
-          <ThemeApplier />
           <ProductsProvider>
             <PromoProvider>
               <CartProvider>{children}</CartProvider>

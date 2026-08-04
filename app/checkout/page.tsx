@@ -327,7 +327,14 @@ export default function Checkout() {
             >
               Falar com a Duo no WhatsApp
             </a>
-            <Link href="/" className="btn-principal" style={{ maxWidth: 260 }}>
+            <Link
+              href="/"
+              className="btn-principal"
+              style={{ maxWidth: 260 }}
+              onClick={() => {
+                sessionStorage.setItem("duo-pular-pretela", "1");
+              }}
+            >
               Voltar ao cardápio
             </Link>
           </div>

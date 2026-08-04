@@ -36,13 +36,19 @@ export type ConfigLoja = {
     pix_name: string;
     pix_city: string;
   };
-  theme: {
-    roxo: string;
-    acai: string;
-    maracuja: string;
-    creme: string;
-    lilas: string;
+  temas: {
+    preTela: Tema;
+    cardapio: Tema;
+    admin: Tema;
   };
+};
+
+export type Tema = {
+  roxo: string;
+  acai: string;
+  maracuja: string;
+  creme: string;
+  lilas: string;
 };
 
 export type Bairro = { id: string; name: string; fee: number };
@@ -89,7 +95,11 @@ export const CONFIG_PADRAO: ConfigLoja = {
     pix_name: STORE.pixName,
     pix_city: STORE.pixCity,
   },
-  theme: { ...TEMA_PADRAO },
+  temas: {
+    preTela: { ...TEMA_PADRAO },
+    cardapio: { ...TEMA_PADRAO },
+    admin: { ...TEMA_PADRAO },
+  },
 };
 
 type Ctx = { config: ConfigLoja; bairros: Bairro[] };
@@ -110,14 +120,24 @@ export function escurecer(hex: string, fator = 0.75): string {
   return `#${n(0)}${n(2)}${n(4)}`;
 }
 
-export function aplicarTema(theme: ConfigLoja["theme"]) {
+/** Cores calculadas (hover, bordas) a partir das 5 escolhidas de um tema */
+export function estiloTema(tema: Tema): Record<string, string> {
+  return {
+    "--roxo": tema.roxo,
+    "--acai": tema.acai,
+    "--maracuja": tema.maracuja,
+    "--creme": tema.creme,
+    "--lilas": tema.lilas,
+    "--acai-2": escurecer(tema.roxo, 0.72),
+    "--creme-2": escurecer(tema.creme, 0.94),
+  };
+}
+
+/** Aplica um tema no documento inteiro — usado pro tema global do cardápio */
+export function aplicarTema(tema: Tema) {
   const r = document.documentElement.style;
-  r.setProperty("--roxo", theme.roxo);
-  r.setProperty("--acai", theme.acai);
-  r.setProperty("--maracuja", theme.maracuja);
-  r.setProperty("--creme", theme.creme);
-  r.setProperty("--lilas", theme.lilas);
-  r.setProperty("--acai-2", escurecer(theme.roxo, 0.72));
+  const estilo = estiloTema(tema);
+  for (const chave in estilo) r.setProperty(chave, estilo[chave]);
 }
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -156,10 +176,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  // aplica as cores do tema no site inteiro
+  // aplica o tema do cardápio no documento inteiro; pré-tela e admin têm
+  // suas próprias paletas, aplicadas localmente em cada tela
   useEffect(() => {
-    aplicarTema(config.theme);
-  }, [config.theme]);
+    aplicarTema(config.temas.cardapio);
+  }, [config.temas.cardapio]);
 
   return (
     <SettingsContext.Provider value={{ config, bairros }}>
@@ -318,5 +339,5 @@ export function previsaoPedido(
   const quando = situacao.reabre
     ? `assim que abrirmos (${situacao.reabre})`
     : "assim que voltarmos a atender";
-  return `Estamos fechados agora, mas seu pedido é bem-vindo! Vamos preparar ${quando} — depois disso, ${acao.toLowerCase()} em até ${tempo} min.`;
+  return `Estamos fechados agora, mas seu pedido é bem-vindo! Vamos preparar ${quando} e, depois disso, ${acao.toLowerCase()} em até ${tempo} min.`;
 }

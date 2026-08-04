@@ -359,11 +359,15 @@ export function resumo(pedidos: Pedido[]) {
   const hoje = inicioDoDia(new Date());
   const seteDias = new Date(hoje);
   seteDias.setDate(seteDias.getDate() - 6);
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth();
 
   let recHoje = 0,
     qtdHoje = 0,
     rec7 = 0,
     qtd7 = 0,
+    recMes = 0,
+    qtdMes = 0,
     recTotal = 0;
 
   const porPagamento: Record<string, number> = {};
@@ -390,6 +394,10 @@ export function resumo(pedidos: Pedido[]) {
     if (d >= seteDias) {
       rec7 += Number(p.total);
       qtd7++;
+    }
+    if (d.getFullYear() === anoAtual && d.getMonth() === mesAtual) {
+      recMes += Number(p.total);
+      qtdMes++;
     }
     for (const item of p.itens) {
       if (!porProduto[item.product_slug])
@@ -436,6 +444,8 @@ export function resumo(pedidos: Pedido[]) {
     qtdHoje,
     rec7,
     qtd7,
+    recMes,
+    qtdMes,
     recTotal,
     totalPedidos: validos.length,
     porPagamento,
