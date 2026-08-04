@@ -474,7 +474,7 @@ export function clientesInativos(
   const agora = Date.now();
   const resultado: ClienteInativo[] = [];
 
-  for (const [telefone, doCliente] of porTelefone) {
+  porTelefone.forEach((doCliente, telefone) => {
     const ultimo = doCliente.reduce((max, p) =>
       new Date(p.created_at) > new Date(max.created_at) ? p : max
     );
@@ -490,7 +490,7 @@ export function clientesInativos(
         totalPedidos: doCliente.length,
       });
     }
-  }
+  });
 
   return resultado.sort((a, b) => b.diasSemPedir - a.diasSemPedir);
 }
