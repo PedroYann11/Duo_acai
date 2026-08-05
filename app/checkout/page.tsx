@@ -24,7 +24,7 @@ import { criarPedidoSite } from "@/lib/data";
 import { gerarPixCopiaECola } from "@/lib/pix";
 import QRCode from "qrcode";
 
-type Pagamento = "Pix" | "Dinheiro" | "Cartão na entrega";
+type Pagamento = "Pix" | "Dinheiro" | "Cartão de crédito";
 
 /* Ícone de cada forma de pagamento (visual, sem dependência externa) */
 function IconePagamento({ tipo }: { tipo: Pagamento }) {
@@ -419,9 +419,12 @@ export default function Checkout() {
               <span>Total</span>
               <span>{formatBRL(total)}</span>
             </div>
-            <p className="km-resultado" style={{ marginTop: 6 }}>
-              {"⏱️"} {previsaoPedido(situacao, tipoEntrega)}
-            </p>
+            {/* com a loja fechada o aviso roxo do topo já explica a previsão */}
+            {situacao.aberta && (
+              <p className="km-resultado" style={{ marginTop: 6 }}>
+                {"⏱️"} {previsaoPedido(situacao, tipoEntrega)}
+              </p>
+            )}
           </div>
 
           <div className="bloco">
@@ -589,7 +592,7 @@ export default function Checkout() {
 
           <div className="bloco">
             <h2>Pagamento</h2>
-            {(["Pix", "Dinheiro", "Cartão na entrega"] as Pagamento[]).map(
+            {(["Pix", "Dinheiro", "Cartão de crédito"] as Pagamento[]).map(
               (opcao) => (
                 <label className="opcao" key={opcao}>
                   <input
@@ -631,19 +634,6 @@ export default function Checkout() {
           >
             {enviando ? "Enviando pedido…" : "Finalizar pedido"}
           </button>
-          <p className="aviso">
-            {"Finalizou, a gente já sai correndo buscar seu açaí no Polo Norte "}
-            {"\u{1F9CA}\u{1F7E3}"} Prefere pedir pelo WhatsApp?{" "}
-            <a
-              href={`https://wa.me/${STORE.whatsapp}`}
-              target="_blank"
-              rel="noopener"
-              style={{ color: "var(--roxo)", fontWeight: 600 }}
-            >
-              Clique aqui
-            </a>
-            . Pagamento online (Pix e cartão) chega em breve.
-          </p>
         </>
       )}
     </div>

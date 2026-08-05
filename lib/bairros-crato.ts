@@ -1,0 +1,36 @@
+// Bairros e localidades de Crato/CE, para preencher o cadastro de entrega
+// sem precisar digitar. A lista é só uma ajuda: no painel dá pra escolher
+// "Outro bairro" e digitar qualquer nome que esteja faltando aqui.
+
+export const BAIRROS_CRATO = [
+  "Alto da Penha",
+  "Aeroporto",
+  "Barro Branco",
+  "Batateiras",
+  "Belmonte",
+  "Bulandeira",
+  "Cacimbas",
+  "Centro",
+  "Coqueiro",
+  "Gisélia Pinheiro",
+  "Granjeiro",
+  "Independência",
+  "Lameiro",
+  "Mata dos Anjos",
+  "Muriti",
+  "Novo Crato",
+  "Palmeiral",
+  "Parque Recreio",
+  "Pimenta",
+  "Pinto Madeira",
+  "Planalto",
+  "Ponta da Serra",
+  "São Miguel",
+  "São Vicente",
+  "Seminário",
+  "Serra do Horto",
+  "Tabocas",
+  "Vila Alta",
+  "Vila Lobo",
+  "Zacarias Gonçalves",
+];

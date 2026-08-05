@@ -70,9 +70,14 @@ export const TEMA_PADRAO = {
   lilas: "#c7a3dc",
 };
 
+/**
+ * Padrões do código. Devem espelhar o que está salvo no painel (tabela
+ * store_settings): assim, mexer no código não "puxa" a loja de volta pra
+ * uma configuração antiga se o banco estiver fora do ar por um instante.
+ */
 export const CONFIG_PADRAO: ConfigLoja = {
   store_open: { open: true, message: "" },
-  banner: { active: false, text: "" },
+  banner: { active: false, text: "Compre 3 duos e ganhe entrega" },
   delivery: {
     fee: STORE.deliveryFee,
     min_order: STORE.minOrder,
@@ -300,25 +305,56 @@ export function situacaoDaLoja(config: ConfigLoja): {
   return { aberta: true, motivo: "", reabre: null };
 }
 
-/** Texto amigável do horário de funcionamento, gerado a partir da configuração real */
-export function resumoHorario(config: ConfigLoja): string {
-  const dias = ["0", "1", "2", "3", "4", "5", "6"];
-  const abertos = dias.filter((d) => !config.hours[d]?.closed);
-  const fechados = dias
-    .filter((d) => config.hours[d]?.closed)
-    .map((d) => DIAS_SEMANA[Number(d)]);
+/** "segunda-feira", "terça-feira"… (sábado e domingo não levam sufixo) */
+function nomeDoDia(indice: number): string {
+  const nome = DIAS_SEMANA[indice];
+  return indice === 0 || indice === 6 ? nome : `${nome}-feira`;
+}
 
+function listar(nomes: string[]): string {
+  if (nomes.length === 1) return nomes[0];
+  return `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]}`;
+}
+
+/**
+ * Texto do horário de funcionamento, gerado da configuração real.
+ * Dias sem horário preenchido contam como fechados, e dias que compartilham
+ * a mesma janela são agrupados, pra nunca cair num "confira no site".
+ */
+export function resumoHorario(config: ConfigLoja): string {
+  const dias = [0, 1, 2, 3, 4, 5, 6];
+  const janela = (d: number) => {
+    const h = config.hours[String(d)];
+    if (!h || h.closed || !h.open || !h.close) return null;
+    return `${h.open} às ${h.close}`;
+  };
+
+  const abertos = dias.filter((d) => janela(d) !== null);
   if (abertos.length === 0) return "Fechado até novo aviso";
 
-  const janelas = new Set(
-    abertos.map((d) => `${config.hours[d].open}-${config.hours[d].close}`)
-  );
-  if (janelas.size > 1) return "Horários variam por dia — confira no site";
+  const fechados = dias.filter((d) => janela(d) === null).map(nomeDoDia);
 
-  const dia = config.hours[abertos[0]];
-  const horario = `${dia.open} às ${dia.close}`;
-  if (fechados.length === 0) return `Todos os dias, ${horario}`;
-  return `${horario} · fechado: ${fechados.join(", ")}`;
+  // agrupa os dias por horário igual
+  const grupos = new Map<string, number[]>();
+  for (const d of abertos) {
+    const j = janela(d)!;
+    if (!grupos.has(j)) grupos.set(j, []);
+    grupos.get(j)!.push(d);
+  }
+
+  if (grupos.size === 1) {
+    const horario = abertos.length ? janela(abertos[0])! : "";
+    if (fechados.length === 0) return `Todos os dias das ${horario}`;
+    return `Todos os dias, exceto ${listar(fechados)}, das ${horario}`;
+  }
+
+  // horários diferentes: mostra cada grupo, sem mandar o cliente "conferir no site"
+  const partes: string[] = [];
+  grupos.forEach((ds, horario) => {
+    partes.push(`${listar(ds.map(nomeDoDia))} das ${horario}`);
+  });
+  if (fechados.length > 0) partes.push(`fechado ${listar(fechados)}`);
+  return partes.join(" · ");
 }
 
 /** Tempo médio de preparo + entrega, hoje um valor fixo (~45 min) */
