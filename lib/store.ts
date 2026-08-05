@@ -10,13 +10,13 @@ export const STORE = {
   instagram: "duoacai_ofc",
   deliveryFee: 5.0, // R$ — ajuste conforme a taxa real
   minOrder: 0, // pedido mínimo em R$ (0 = sem mínimo)
-  openHours: "Todos os dias, 10h às 22h", // ajuste o horário real
+  openHours: "Todos os dias, exceto terça-feira, das 16:00 às 22:00",
   adminPin: "duo2026", // TROQUE esta senha do painel /admin (modo local)
 
   // ---- Pix da loja (para o QR code do checkout) ----
-  // Preencha a chave Pix da Duo (CPF/CNPJ, telefone, email ou aleatória).
+  // Espelha o que está salvo no painel (aba Loja > Contato e Pix).
   // Se deixar vazio (""), o site não mostra o QR e o cliente paga na entrega.
-  pixKey: "07228088360",
+  pixKey: "88999938001",
   pixName: "DUO ACAI", // nome do recebedor, sem acento, máx 25 letras
   pixCity: "CRATO", // cidade do recebedor, máx 15 letras
 };

@@ -330,21 +330,37 @@ export async function removerVendedor(id: string): Promise<void> {
   }
 }
 
-/** Vendas do mês atual de um vendedor específico (pra tela dele) */
-export function resumoDoMes(pedidos: Pedido[], sellerName: string) {
-  const agora = new Date();
-  const doMes = pedidos.filter((p) => {
-    if (p.status === "cancelado" || p.seller_name !== sellerName) return false;
-    const d = new Date(p.created_at);
-    return (
-      d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear()
-    );
-  });
-  return {
-    qtd: doMes.length,
-    receita: doMes.reduce((soma, p) => soma + Number(p.total), 0),
-  };
+/**
+ * Equipe visível na área do funcionário (sem login de admin).
+ * Vem de uma função no banco que devolve só nome/cargo/meta — salário
+ * nunca sai do painel do dono.
+ */
+export async function listarEquipePublica(): Promise<Vendedor[]> {
+  if (!supabaseOn) return vendedoresLocais();
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc("equipe_publica");
+  if (error || !data) return [];
+  return (data as any[]).map((v) => ({
+    id: v.id,
+    name: v.name,
+    role: v.role ?? null,
+    salary: null,
+    monthly_goal: v.monthly_goal != null ? Number(v.monthly_goal) : null,
+  }));
 }
+
+/** Total do mês de um vendedor, sem exigir login (só o agregado) */
+export async function vendasDoMesPublico(
+  vendedor: string
+): Promise<{ qtd: number; receita: number }> {
+  if (!supabaseOn) return { qtd: 0, receita: 0 };
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc("vendas_do_mes", { vendedor });
+  const linha = Array.isArray(data) ? data[0] : data;
+  if (error || !linha) return { qtd: 0, receita: 0 };
+  return { qtd: Number(linha.qtd || 0), receita: Number(linha.receita || 0) };
+}
+
 
 // ---------- indicadores ----------
 

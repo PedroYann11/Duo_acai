@@ -3,6 +3,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { STORE } from "@/lib/store";
 import { estiloTema, useSettings } from "@/lib/settings-context";
+import { Logo } from "@/components/Logo";
 
 /**
  * Tela de boas-vindas antes do cardápio: cliente escolhe entre pedir,
@@ -43,21 +44,8 @@ export function PreTela() {
       style={estiloTema(config.temas.preTela) as CSSProperties}
     >
       <div className="pre-tela-topo">
-        <span className="logo pre-tela-logo">
-          <img src="/icone-garrafa.png" alt="" className="logo-icone" />
-          <span className="logo-texto">
-            DUO
-            <span>O açaí da garrafa</span>
-          </span>
-        </span>
+        <Logo escala={1.6} className="pre-tela-logo" />
         <p className="pre-tela-sub">O que você quer fazer?</p>
-
-        <button
-          className="btn-principal pre-tela-cta"
-          onClick={() => setAtiva(false)}
-        >
-          <IconeMenu /> Ver cardápio e pedir
-        </button>
       </div>
 
       <svg
@@ -73,6 +61,12 @@ export function PreTela() {
       </svg>
 
       <div className="pre-tela-baixo">
+        <button
+          className="btn-principal pre-tela-cta"
+          onClick={() => setAtiva(false)}
+        >
+          <IconeMenu /> Ver cardápio e pedir
+        </button>
         <a
           className="pre-tela-link"
           href={linkWpp("Oi! Vim pelo site da Duo Açaí e queria falar com vocês.")}

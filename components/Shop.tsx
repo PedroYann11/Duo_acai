@@ -7,6 +7,7 @@ import { useProducts } from "@/lib/products-context";
 import { useSettings } from "@/lib/settings-context";
 import { usePromos, calcularDescontoCombo } from "@/lib/promo-context";
 import { useCart } from "@/lib/cart";
+import { Logo } from "@/components/Logo";
 
 /* ---------- Header ---------- */
 export function Header() {
@@ -17,12 +18,8 @@ export function Header() {
     <>
       <header className="header">
         <div className="header-inner">
-          <Link href="/" className="logo">
-            <img src="/icone-garrafa.png" alt="" className="logo-icone" />
-            <span className="logo-texto">
-              DUO
-              <span>O açaí da garrafa</span>
-            </span>
+          <Link href="/" className="logo-link">
+            <Logo />
           </Link>
           <button className="btn-cart" onClick={() => setOpen(true)}>
             Carrinho

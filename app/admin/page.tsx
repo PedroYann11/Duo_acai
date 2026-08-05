@@ -16,6 +16,7 @@ import {
   type Tema,
 } from "@/lib/settings-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
+import { BAIRROS_CRATO } from "@/lib/bairros-crato";
 import {
   listarPedidos,
   registrarVendaBalcao,
@@ -23,7 +24,8 @@ import {
   adicionarVendedor,
   atualizarVendedor,
   removerVendedor,
-  resumoDoMes,
+  listarEquipePublica,
+  vendasDoMesPublico,
   type Vendedor,
   listarProdutosAdmin,
   salvarProduto,
@@ -49,7 +51,6 @@ import {
   aoChegarPedido,
   resumo,
   clientesInativos,
-  type ClienteInativo,
   STATUS_LABEL,
   PROXIMO_STATUS,
   linkWhatsApp,
@@ -61,6 +62,7 @@ import {
 
 export default function Admin() {
   const [logado, setLogado] = useState(false);
+  const [modoFuncionario, setModoFuncionario] = useState(false);
   const [verificando, setVerificando] = useState(true);
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -97,6 +99,10 @@ export default function Admin() {
   };
 
   if (verificando) return <div className="admin"><p>Carregando…</p></div>;
+
+  if (!logado && modoFuncionario) {
+    return <AreaFuncionario onSair={() => setModoFuncionario(false)} />;
+  }
 
   if (!logado) {
     return (
@@ -149,6 +155,21 @@ export default function Admin() {
             Entrar
           </button>
         </div>
+
+        <div className="bloco">
+          <h2>É da equipe?</h2>
+          <p style={{ color: "var(--texto-suave)", fontSize: "0.88rem", marginBottom: 12 }}>
+            Veja suas vendas e sua meta do mês sem precisar da senha do dono.
+          </p>
+          <button
+            className="btn-suave"
+            style={{ width: "100%" }}
+            onClick={() => setModoFuncionario(true)}
+          >
+            {"\u{1F464}"} Sou funcionário
+          </button>
+        </div>
+
         <Link href="/" className="voltar">← Voltar à loja</Link>
       </div>
     );
@@ -322,9 +343,7 @@ function Painel() {
       {aba === "pedidos" && (
         <Pedidos pedidos={pedidos} onMudou={recarregar} />
       )}
-      {aba === "vendedores" && (
-        <Vendedores avisar={avisar} pedidos={pedidos} />
-      )}
+      {aba === "vendedores" && <Vendedores avisar={avisar} />}
       {aba === "produtos" && <Produtos avisar={avisar} />}
       {aba === "loja" && <Loja avisar={avisar} />}
       {aba === "promocoes" && <Promocoes avisar={avisar} />}
@@ -520,6 +539,14 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
 
   return (
     <>
+      {/* faturamento acumulado em destaque, e os recortes menores em 2x2 */}
+      <div className="kpi-hero">
+        <div className="rotulo">Faturamento acumulado</div>
+        <div className="valor">{formatBRL(r.recTotal)}</div>
+        <div className="detalhe">
+          {r.totalPedidos} venda(s) desde o início
+        </div>
+      </div>
       <div className="kpis">
         <div className="kpi destaque">
           <div className="rotulo">Hoje</div>
@@ -532,7 +559,7 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
           <div className="detalhe">{r.qtd7} venda(s)</div>
         </div>
         <div className="kpi">
-          <div className="rotulo">Mês</div>
+          <div className="rotulo">Este mês</div>
           <div className="valor">{formatBRL(r.recMes)}</div>
           <div className="detalhe">{r.qtdMes} venda(s)</div>
         </div>
@@ -540,11 +567,6 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
           <div className="rotulo">Ticket médio</div>
           <div className="valor">{formatBRL(r.ticketMedio)}</div>
           <div className="detalhe">por venda</div>
-        </div>
-        <div className="kpi">
-          <div className="rotulo">Total geral</div>
-          <div className="valor">{formatBRL(r.recTotal)}</div>
-          <div className="detalhe">{r.totalPedidos} venda(s)</div>
         </div>
       </div>
 
@@ -661,70 +683,97 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
   );
 }
 
-/* Gráfico de linha em SVG (faturamento por dia) */
+/* Gráfico de linha em SVG (faturamento por dia).
+   viewBox estreito de propósito: no celular o SVG é esticado até a largura
+   da tela, então quanto menor o viewBox, maiores as letras ficam na prática. */
 function GraficoLinha({ serie }: { serie: { dia: string; valor: number }[] }) {
-  const W = 560;
-  const H = 180;
-  const pad = 30;
+  const W = 360;
+  const H = 210;
+  const padX = 16;
+  const topo = 34; // espaço pros valores acima da linha
+  const base = H - 34; // espaço pros nomes dos dias
   const max = Math.max(...serie.map((s) => s.valor), 1);
-  const passoX = (W - pad * 2) / Math.max(serie.length - 1, 1);
+  const passoX = (W - padX * 2) / Math.max(serie.length - 1, 1);
   const pontos = serie.map((s, i) => ({
-    x: pad + i * passoX,
-    y: H - pad - (s.valor / max) * (H - pad * 2),
+    x: padX + i * passoX,
+    y: base - (s.valor / max) * (base - topo),
     ...s,
   }));
   const caminho = pontos
     .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`)
     .join(" ");
-  const area = `${caminho} L ${pontos[pontos.length - 1].x} ${H - pad} L ${pontos[0].x} ${H - pad} Z`;
+  const area = `${caminho} L ${pontos[pontos.length - 1].x} ${base} L ${pontos[0].x} ${base} Z`;
+
+  const melhor = serie.reduce(
+    (a, b) => (b.valor > a.valor ? b : a),
+    serie[0] || { dia: "", valor: 0 }
+  );
 
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="grafico-linha"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--roxo)" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="var(--roxo)" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#areaGrad)" />
-      <path
-        d={caminho}
-        fill="none"
-        stroke="var(--roxo)"
-        strokeWidth="2.5"
-        strokeLinejoin="round"
-      />
-      {pontos.map((p, i) => (
-        <g key={i}>
-          <circle cx={p.x} cy={p.y} r="4" fill="var(--roxo)" />
-          {p.valor > 0 && (
+    <>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="grafico-linha"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--roxo)" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="var(--roxo)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <line
+          x1="0"
+          y1={base}
+          x2={W}
+          y2={base}
+          stroke="var(--creme-2)"
+          strokeWidth="1"
+        />
+        <path d={area} fill="url(#areaGrad)" />
+        <path
+          d={caminho}
+          fill="none"
+          stroke="var(--roxo)"
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+        />
+        {pontos.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r="4.5" fill="var(--roxo)" />
+            {p.valor > 0 && (
+              /* alterna a altura do rótulo pra dois dias seguidos não se sobreporem */
+              <text
+                x={p.x}
+                y={p.y - (i % 2 === 0 ? 12 : 25)}
+                textAnchor={i === 0 ? "start" : i === pontos.length - 1 ? "end" : "middle"}
+                fontSize="12"
+                fill="var(--roxo)"
+                fontWeight="700"
+              >
+                {formatBRL(p.valor)}
+              </text>
+            )}
             <text
               x={p.x}
-              y={p.y - 10}
+              y={base + 22}
               textAnchor="middle"
-              fontSize="9"
-              fill="var(--texto-suave)"
+              fontSize="14"
               fontWeight="600"
+              fill="var(--texto-suave)"
             >
-              {p.valor.toFixed(0)}
+              {p.dia}
             </text>
-          )}
-          <text
-            x={p.x}
-            y={H - pad + 16}
-            textAnchor="middle"
-            fontSize="10"
-            fill="var(--texto-suave)"
-          >
-            {p.dia}
-          </text>
-        </g>
-      ))}
-    </svg>
+          </g>
+        ))}
+      </svg>
+      {melhor.valor > 0 && (
+        <p style={{ color: "var(--texto-suave)", fontSize: "0.85rem", marginTop: 6 }}>
+          Melhor dia da semana: <strong>{melhor.dia}</strong> com{" "}
+          {formatBRL(melhor.valor)}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -817,21 +866,119 @@ function GraficoDonut({
   );
 }
 
+/* ================= Área do funcionário (sem login do dono) ================= */
+
+function AreaFuncionario({ onSair }: { onSair: () => void }) {
+  const [lista, setLista] = useState<Vendedor[]>([]);
+  const [selecionado, setSelecionado] = useState<Vendedor | null>(null);
+  const [vendas, setVendas] = useState<{ qtd: number; receita: number } | null>(
+    null
+  );
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    listarEquipePublica()
+      .then(setLista)
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const escolher = async (v: Vendedor) => {
+    setSelecionado(v);
+    setVendas(null);
+    setVendas(await vendasDoMesPublico(v.name));
+  };
+
+  const metaValor = selecionado?.monthly_goal || 0;
+  const progresso =
+    metaValor > 0 && vendas
+      ? Math.min(100, (vendas.receita / metaValor) * 100)
+      : 0;
+
+  return (
+    <div className="admin" style={{ maxWidth: 460 }}>
+      <h1>Área do funcionário</h1>
+
+      {!selecionado ? (
+        <div className="bloco">
+          <h2>Quem é você?</h2>
+          {carregando && <p style={{ color: "var(--texto-suave)" }}>Carregando…</p>}
+          <div className="pill-group">
+            {lista.map((v) => (
+              <button key={v.id} className="pill" onClick={() => escolher(v)}>
+                {v.name}
+              </button>
+            ))}
+          </div>
+          {!carregando && lista.length === 0 && (
+            <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
+              Ninguém cadastrado ainda. Peça pro dono te adicionar no painel.
+            </p>
+          )}
+        </div>
+      ) : (
+        <div className="bloco">
+          <button
+            className="btn-suave"
+            style={{ marginBottom: 14 }}
+            onClick={() => {
+              setSelecionado(null);
+              setVendas(null);
+            }}
+          >
+            {"\u{2190}"} Trocar
+          </button>
+          <h2>Oi, {selecionado.name.split(" ")[0]}!</h2>
+          {selecionado.role && (
+            <p style={{ color: "var(--texto-suave)", marginBottom: 10 }}>
+              {selecionado.role}
+            </p>
+          )}
+          <div className="kpis">
+            <div className="kpi destaque">
+              <div className="rotulo">Minhas vendas no mês</div>
+              <div className="valor">{formatBRL(vendas?.receita || 0)}</div>
+              <div className="detalhe">{vendas?.qtd || 0} venda(s)</div>
+            </div>
+            <div className="kpi">
+              <div className="rotulo">Meta do mês</div>
+              <div className="valor">
+                {metaValor > 0 ? formatBRL(metaValor) : "—"}
+              </div>
+              <div className="detalhe">
+                {metaValor > 0 ? `${progresso.toFixed(0)}% atingido` : "sem meta"}
+              </div>
+            </div>
+          </div>
+          {metaValor > 0 && (
+            <div className="barra-trilho" style={{ marginTop: 14 }}>
+              <div className="barra-fill" style={{ width: `${progresso}%` }} />
+            </div>
+          )}
+          {metaValor === 0 && (
+            <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem", marginTop: 10 }}>
+              O dono ainda não definiu uma meta do mês pra você.
+            </p>
+          )}
+        </div>
+      )}
+
+      <button className="btn-suave" onClick={onSair} style={{ width: "100%" }}>
+        {"\u{2190}"} Voltar ao login do painel
+      </button>
+      <Link href="/" className="voltar" style={{ marginTop: 14 }}>
+        Ir para a loja
+      </Link>
+    </div>
+  );
+}
+
 /* ================= Vendedores ================= */
 
-function Vendedores({
-  avisar,
-  pedidos,
-}: {
-  avisar: (msg: string) => void;
-  pedidos: Pedido[];
-}) {
-  const [modo, setModo] = useState<"dono" | "funcionario">("dono");
+function Vendedores({ avisar }: { avisar: (msg: string) => void }) {
   const [lista, setLista] = useState<Vendedor[]>([]);
   const [nome, setNome] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [editando, setEditando] = useState<string | null>(null);
-  const [selecionado, setSelecionado] = useState<string | null>(null);
 
   const carregar = () => listarVendedores().then(setLista);
   useEffect(() => {
@@ -853,96 +1000,8 @@ function Vendedores({
     }
   };
 
-  if (modo === "funcionario") {
-    const escolhido = lista.find((v) => v.id === selecionado) || null;
-    const meta = escolhido ? resumoDoMes(pedidos, escolhido.name) : null;
-    const metaValor = escolhido?.monthly_goal || 0;
-    const progresso =
-      metaValor > 0 && meta ? Math.min(100, (meta.receita / metaValor) * 100) : 0;
-
-    return (
-      <>
-        <div className="pill-group" style={{ marginBottom: 14 }}>
-          <button className="pill" onClick={() => setModo("dono")}>
-            {"\u{1F511}"} Sou o dono
-          </button>
-          <button className="pill ativo">{"\u{1F464}"} Sou funcionário</button>
-        </div>
-
-        {!escolhido ? (
-          <div className="bloco">
-            <h2>Quem é você?</h2>
-            <div className="pill-group">
-              {lista.map((v) => (
-                <button
-                  key={v.id}
-                  className="pill"
-                  onClick={() => setSelecionado(v.id)}
-                >
-                  {v.name}
-                </button>
-              ))}
-              {lista.length === 0 && (
-                <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem" }}>
-                  Ninguém cadastrado ainda — peça pro dono te adicionar aqui.
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="bloco">
-            <button
-              className="btn-suave"
-              style={{ marginBottom: 14 }}
-              onClick={() => setSelecionado(null)}
-            >
-              {"\u{2190}"} Trocar
-            </button>
-            <h2>Oi, {escolhido.name.split(" ")[0]}!</h2>
-            {escolhido.role && (
-              <p style={{ color: "var(--texto-suave)", marginBottom: 10 }}>
-                {escolhido.role}
-              </p>
-            )}
-            <div className="kpis">
-              <div className="kpi destaque">
-                <div className="rotulo">Vendas do mês</div>
-                <div className="valor">{formatBRL(meta?.receita || 0)}</div>
-                <div className="detalhe">{meta?.qtd || 0} venda(s)</div>
-              </div>
-              {metaValor > 0 && (
-                <div className="kpi">
-                  <div className="rotulo">Meta do mês</div>
-                  <div className="valor">{formatBRL(metaValor)}</div>
-                  <div className="detalhe">{progresso.toFixed(0)}% atingido</div>
-                </div>
-              )}
-            </div>
-            {metaValor > 0 && (
-              <div className="barra-trilho" style={{ marginTop: 14 }}>
-                <div className="barra-fill" style={{ width: `${progresso}%` }} />
-              </div>
-            )}
-            {metaValor === 0 && (
-              <p style={{ color: "var(--texto-suave)", fontSize: "0.9rem", marginTop: 10 }}>
-                O dono ainda não definiu uma meta do mês pra você.
-              </p>
-            )}
-          </div>
-        )}
-      </>
-    );
-  }
-
   return (
     <>
-      <div className="pill-group" style={{ marginBottom: 14 }}>
-        <button className="pill ativo">{"\u{1F511}"} Sou o dono</button>
-        <button className="pill" onClick={() => setModo("funcionario")}>
-          {"\u{1F464}"} Sou funcionário
-        </button>
-      </div>
-
       <div className="bloco">
         <h2>Novo funcionário</h2>
         <div className="campo">
@@ -2217,17 +2276,28 @@ function BairrosEditor({
   avisar: (msg: string) => void;
 }) {
   const [nome, setNome] = useState("");
+  const [outro, setOutro] = useState(""); // bairro que não está na lista
   const [taxa, setTaxa] = useState("");
 
+  // esconde da lista os bairros que já foram cadastrados
+  const jaCadastrados = new Set(
+    bairros.map((b) => b.name.trim().toLowerCase())
+  );
+  const disponiveis = BAIRROS_CRATO.filter(
+    (b) => !jaCadastrados.has(b.toLowerCase())
+  );
+
   const adicionar = async () => {
+    const escolhido = (nome === "__outro" ? outro : nome).trim();
     const valor = parseFloat(taxa.replace(",", "."));
-    if (!nome.trim() || isNaN(valor) || valor < 0) {
-      avisar("Preencha bairro e taxa");
+    if (!escolhido || isNaN(valor) || valor < 0) {
+      avisar("Escolha o bairro e informe a taxa");
       return;
     }
     try {
-      await criarBairro(nome, valor);
+      await criarBairro(escolhido, valor);
       setNome("");
+      setOutro("");
       setTaxa("");
       onMudou();
       avisar("Bairro adicionado");
@@ -2260,7 +2330,19 @@ function BairrosEditor({
       <div className="duas-colunas" style={{ marginTop: 10 }}>
         <div className="campo">
           <label>Bairro</label>
-          <input value={nome} onChange={(e) => setNome(e.target.value)} />
+          <select
+            className="select-bairro"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+          >
+            <option value="">Escolha o bairro…</option>
+            {disponiveis.map((b) => (
+              <option key={b} value={b}>
+                {b}
+              </option>
+            ))}
+            <option value="__outro">Outro bairro (digitar)</option>
+          </select>
         </div>
         <div className="campo">
           <label>Taxa (R$)</label>
@@ -2271,6 +2353,16 @@ function BairrosEditor({
           />
         </div>
       </div>
+      {nome === "__outro" && (
+        <div className="campo">
+          <label>Nome do bairro</label>
+          <input
+            value={outro}
+            onChange={(e) => setOutro(e.target.value)}
+            placeholder="Digite o bairro"
+          />
+        </div>
+      )}
       <button className="btn-suave" onClick={adicionar}>
         + Adicionar bairro
       </button>

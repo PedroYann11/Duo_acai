@@ -42,8 +42,9 @@ export function Hero() {
             O açaí <em>da garrafa</em>
           </h1>
           <p>
-            Açaí cremoso em camadas com os cremes mais pedidos, direto na
-            garrafa e na sua porta. Escolhe o sabor, o resto é com a gente.
+            Bem-vindo à Duo Açaí, o original açaí da garrafa. Açaí + creme que
+            vão te surpreender do primeiro ao último gole. Qual vai ser o seu
+            Duo?
           </p>
           <a href="#cardapio" className="hero-cta">
             Ver cardápio
@@ -58,90 +59,122 @@ export function Hero() {
   );
 }
 
-/* Garrafinha SVG (formato "leiteira" 300ml, quadrada) enchendo com os 5 sabores + açaí por cima */
+/* Contorno oficial da garrafa Duo (duo_garrafa.svg do cliente): gargalo
+   estreito, ombro que abre até a largura cheia e corpo em 4 gomos. */
+const CORPO_TOPO =
+  "M43.5 24.5H98.5C102.642 24.5 106 27.8579 106 32V46.8525C106 50.2911 108.089 53.3284 111.124 54.8555C129.192 63.9457 141.5 79.8506 141.5 104.481V133C141.5 135.314 140.953 137.433 139.665 138.966C138.39 140.483 136.325 141.5 133.125 141.5H8.875C6.04493 141.5 3.96713 140.492 2.5918 138.954C1.20886 137.408 0.5 135.284 0.5 133V104.481C0.5 83.0204 12.828 64.4283 30.9082 54.8994C33.9065 53.3192 36 50.2923 36 46.8525V32C36 27.8579 39.3579 24.5 43.5 24.5Z";
+
+const TAMPA =
+  "M32 0.5H110C112.485 0.5 114.5 2.51472 114.5 5V35C114.5 37.4853 112.485 39.5 110 39.5H32C29.5147 39.5 27.5 37.4853 27.5 35V5C27.5 2.51472 29.5147 0.5 32 0.5Z";
+
+/* Gomos do corpo, nas medidas exatas do arquivo. Cada gomo recebe um sabor,
+   de baixo pra cima; o ombro em cima fica dividido entre paçoca e açaí. */
+const GOMOS = [
+  { y: 142.5, h: 44, cor: "#a8c36b", camada: "c4" }, // pistache
+  { y: 187.5, h: 44, cor: "#5a3a22", camada: "c3" }, // nutella
+  { y: 232.5, h: 45, cor: "#f6ecda", camada: "c2" }, // ninho
+  { y: 278.114, h: 53.3857, cor: "#f2c230", camada: "c1" }, // maracujá
+];
+
+/* Divisa entre paçoca e açaí, com a ondinha que dá o charme */
+const DIVISA = 101;
+const ACAI_COM_ONDA = `M0 18 H142 V${DIVISA} Q106.5 ${DIVISA + 7} 71 ${DIVISA} Q35.5 ${DIVISA - 7} 0 ${DIVISA} Z`;
+/* mesma forma, só que esticada pra cima: é ela que cai, e a de cima recorta.
+   A sobra evita que o repique da queda abra um buraco no topo da faixa. */
+const ACAI_QUE_CAI = `M0 -60 H142 V${DIVISA} Q106.5 ${DIVISA + 7} 71 ${DIVISA} Q35.5 ${DIVISA - 7} 0 ${DIVISA} Z`;
+/* onde o corpo da garrafa começa: é daqui que os sabores surgem, caindo */
+const TOPO_CORPO = 142;
+
+/* Garrafa Duo enchendo com os sabores, camada por camada.
+   viewBox com 1 unidade de folga pra borda do traço não ser cortada. */
 function BottleFill() {
   return (
     <svg
       className="bottle"
-      viewBox="0 0 140 300"
+      viewBox="-1 -1 144 334"
       xmlns="http://www.w3.org/2000/svg"
     >
       <defs>
+        {/* o recorte segue cada gomo separadamente, senão a cor vaza nos
+            cantos arredondados que separam uma listra da outra */}
         <clipPath id="corpo-clip">
-          {/* funil contínuo da tampa até o corpo, do mesmo tamanho da camada de açaí (a de cima) */}
-          <path d="M41 32 Q26 60 24 87 L24 257 Q24 274 38 276 L102 276 Q116 274 116 257 L116 87 Q114 60 99 32 Z" />
+          <path d={CORPO_TOPO} />
+          {GOMOS.map((g, i) => (
+            <rect key={i} x="0.5" y={g.y} width="141" height={g.h} rx="7.5" />
+          ))}
+        </clipPath>
+        {/* cada sabor cai do alto do corpo até o lugar dele. O trajeto para no
+            começo do corpo de propósito: se passasse pelo gargalo e pelo ombro,
+            pareceria que a paçoca e o açaí já tinham caído antes da vez. */}
+        {GOMOS.map((g, i) => (
+          <clipPath key={i} id={`queda-${i}`}>
+            <rect x="0" y={TOPO_CORPO} width="142" height={g.y + g.h - TOPO_CORPO} />
+          </clipPath>
+        ))}
+        {/* a paçoca desce pelo gargalo, como se estivesse sendo servida */}
+        <clipPath id="queda-pacoca">
+          <rect x="0" y="24" width="142" height={141.5 - 24} />
+        </clipPath>
+        <clipPath id="faixa-acai">
+          <path d={ACAI_COM_ONDA} />
         </clipPath>
       </defs>
 
-      {/* camadas dos sabores (dentro do clip do corpo); a de cima (açaí) ocupa exatamente o funil */}
+      {/* garrafa vazia */}
+      <g opacity="0.5">
+        <path d={CORPO_TOPO} fill="#efe8f5" />
+        {GOMOS.map((g, i) => (
+          <rect key={i} x="0.5" y={g.y} width="141" height={g.h} rx="7.5" fill="#efe8f5" />
+        ))}
+      </g>
+
+      {/* sabores: cada um cai na sua vez, de baixo pra cima, e só aparece
+          dentro da própria faixa */}
       <g clipPath="url(#corpo-clip)">
-        {/* vidro vazio */}
-        <rect x="24" y="32" width="92" height="244" fill="#efe8f5" opacity="0.5" />
-        {/* cada camada tem 34px e "cai" na sua vez; a última (mais no fundo) sobra até a base */}
-        <rect className="camada c1" x="24" y="223" width="92" height="60" fill="#f2c230" />
-        <rect className="camada c2" x="24" y="189" width="92" height="34" fill="#f6ecda" />
-        <rect className="camada c3" x="24" y="155" width="92" height="34" fill="#5a3a22" />
-        <rect className="camada c4" x="24" y="121" width="92" height="34" fill="#a8c36b" />
-        <rect className="camada c5" x="24" y="87" width="92" height="34" fill="#d8b98a" />
-        <rect className="camada c6" x="24" y="32" width="92" height="55" fill="#4a1140" />
-        {/* ondinha no topo da última camada */}
-        <g className="camada c6">
-          <path
-            d="M24 87 Q46 81 70 87 T116 87 L116 82 Q94 88 70 82 T24 82 Z"
-            fill="#4a1140"
-          />
+        {GOMOS.map((g, i) => (
+          <g key={i} clipPath={`url(#queda-${i})`}>
+            <rect
+              className={`camada ${g.camada}`}
+              x="0.5"
+              y={g.y}
+              width="141"
+              height={g.h}
+              fill={g.cor}
+            />
+          </g>
+        ))}
+        {/* paçoca: parte de baixo do ombro (o 5º sabor, que não cabia nos gomos) */}
+        <g clipPath="url(#queda-pacoca)">
+          <rect className="camada c5" x="0" y="94" width="142" height="47.5" fill="#d8b98a" />
         </g>
-        {/* brilho do vidro */}
-        <rect x="31" y="32" width="7" height="244" fill="#ffffff" opacity="0.22" rx="4" />
+        {/* açaí: gargalo e topo do ombro, com a ondinha no encontro com a paçoca */}
+        <g clipPath="url(#faixa-acai)">
+          <path className="camada c6" d={ACAI_QUE_CAI} fill="#4a1140" />
+        </g>
+        {/* brilho do plástico */}
+        <rect x="12" y="55" width="9" height="270" fill="#ffffff" opacity="0.2" rx="4" />
       </g>
 
-      {/* contorno: funil contínuo da tampa pro corpo quadrado, terminando junto com a camada de açaí */}
-      <path
-        d="M41 32 Q26 60 24 87 L24 257 Q24 274 38 276 L102 276 Q116 274 116 257 L116 87 Q114 60 99 32"
-        fill="none"
-        stroke="var(--lilas)"
-        strokeWidth="2.5"
-        opacity="0.8"
-      />
+      {/* contorno do gargalo e ombro */}
+      <path d={CORPO_TOPO} fill="none" stroke="var(--lilas)" strokeWidth="1.4" />
 
-      {/* gomos: anel na junção do ombro com o corpo, mais 2 aneis no corpo reto */}
-      <g stroke="var(--lilas)" strokeWidth="1.6" opacity="0.45">
-        <line x1="24" y1="87" x2="116" y2="87" />
-        <line x1="24" y1="144" x2="116" y2="144" />
-        <line x1="24" y1="200" x2="116" y2="200" />
-      </g>
+      {/* gomos do corpo */}
+      {GOMOS.map((g, i) => (
+        <rect
+          key={i}
+          x="0.5"
+          y={g.y}
+          width="141"
+          height={g.h}
+          rx="7.5"
+          fill="none"
+          stroke="var(--lilas)"
+          strokeWidth="1.4"
+        />
+      ))}
 
-      {/* tampa: roxa, como a garrafa real; desenhada por cima pra "tampar" a garrafa sem folga */}
-      <rect x="41" y="0" width="58" height="36" rx="8" fill="var(--roxo)" stroke="var(--lilas)" strokeWidth="1.2" opacity="0.95" />
-      <rect x="41" y="26" width="58" height="1.6" fill="var(--acai)" opacity="0.5" />
-
-      {/* rótulo DUO: ícone da garrafa + nome, no gomo do meio */}
-      <circle cx="70" cy="172" r="26" fill="#fffdf8" opacity="0.97" />
-      <circle cx="70" cy="172" r="26" fill="none" stroke="var(--roxo)" strokeWidth="1" opacity="0.25" />
-      <image href="/icone-garrafa.png" x="57" y="149" width="26" height="22" />
-      <text
-        x="70"
-        y="184"
-        textAnchor="middle"
-        fontFamily="Bricolage Grotesque, sans-serif"
-        fontWeight="800"
-        fontSize="12"
-        fill="#61174c"
-      >
-        DUO
-      </text>
-      <text
-        x="70"
-        y="193"
-        textAnchor="middle"
-        fontFamily="Instrument Sans, sans-serif"
-        fontWeight="700"
-        fontSize="6"
-        letterSpacing="0.5"
-        fill="#7a5a72"
-      >
-        AÇAÍ
-      </text>
+      {/* tampa roxa */}
+      <path d={TAMPA} fill="var(--roxo)" stroke="var(--lilas)" strokeWidth="1.4" />
     </svg>
   );
 }
