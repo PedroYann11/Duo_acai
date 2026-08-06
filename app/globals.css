@@ -571,6 +571,48 @@ a {
   cursor: pointer;
 }
 
+/* checkbox genérico de opção secundária (ex: "lembrar de mim") */
+.campo-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--texto-suave);
+  cursor: pointer;
+  margin: -4px 0 14px;
+}
+
+.campo-checkbox input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--roxo);
+  cursor: pointer;
+}
+
+/* campo de senha com botão de olhinho pra mostrar/esconder */
+.campo-senha {
+  position: relative;
+}
+
+.campo-senha input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.campo-senha-olho {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  padding: 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+
 .duas-colunas {
   display: grid;
   grid-template-columns: 1fr 1fr;

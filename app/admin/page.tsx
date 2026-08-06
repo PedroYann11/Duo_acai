@@ -15,7 +15,12 @@ import {
   type ConfigLoja,
   type Tema,
 } from "@/lib/settings-context";
-import { supabaseOn, getSupabase } from "@/lib/supabase";
+import {
+  supabaseOn,
+  getSupabase,
+  getLembrarDispositivo,
+  setLembrarDispositivo,
+} from "@/lib/supabase";
 import { BAIRROS_CRATO } from "@/lib/bairros-crato";
 import { ativarNotificacoes, desativarNotificacoes } from "@/lib/push";
 import {
@@ -69,6 +74,12 @@ export default function Admin() {
   const [senha, setSenha] = useState("");
   const [pin, setPin] = useState("");
   const [erro, setErro] = useState("");
+  const [lembrar, setLembrar] = useState(true);
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+
+  useEffect(() => {
+    setLembrar(getLembrarDispositivo());
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -85,6 +96,7 @@ export default function Admin() {
   const entrar = async () => {
     setErro("");
     if (supabaseOn) {
+      setLembrarDispositivo(lembrar);
       const { error } = await getSupabase().auth.signInWithPassword({
         email,
         password: senha,
@@ -124,15 +136,34 @@ export default function Admin() {
               </div>
               <div className="campo">
                 <label htmlFor="senha">Senha</label>
-                <input
-                  id="senha"
-                  type="password"
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && entrar()}
-                  placeholder="••••••••"
-                />
+                <div className="campo-senha">
+                  <input
+                    id="senha"
+                    type={mostrarSenha ? "text" : "password"}
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && entrar()}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    className="campo-senha-olho"
+                    onClick={() => setMostrarSenha((v) => !v)}
+                    aria-label={mostrarSenha ? "Esconder senha" : "Mostrar senha"}
+                    tabIndex={-1}
+                  >
+                    {mostrarSenha ? "\u{1F648}" : "\u{1F441}\u{FE0F}"}
+                  </button>
+                </div>
               </div>
+              <label className="campo-checkbox">
+                <input
+                  type="checkbox"
+                  checked={lembrar}
+                  onChange={(e) => setLembrar(e.target.checked)}
+                />
+                Lembrar de mim nesse dispositivo
+              </label>
             </>
           ) : (
             <div className="campo">
