@@ -912,6 +912,50 @@ a {
   color: var(--creme);
 }
 
+/* faixa dispensável explicando como instalar o painel como app */
+.dica-instalar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--creme);
+  border: 1.5px solid var(--creme-2);
+  border-radius: var(--raio);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.dica-instalar-icone {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.dica-instalar-texto {
+  flex: 1;
+}
+
+.dica-instalar-texto strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.92rem;
+}
+
+.dica-instalar-texto p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  line-height: 1.4;
+}
+
+.dica-instalar-fechar {
+  background: none;
+  border: none;
+  color: var(--texto-suave);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
 /* faturamento acumulado: card largo em destaque acima dos recortes */
 .kpi-hero {
   background: linear-gradient(135deg, var(--roxo) 0%, var(--acai) 100%);

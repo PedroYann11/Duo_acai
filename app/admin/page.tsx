@@ -17,6 +17,7 @@ import {
 } from "@/lib/settings-context";
 import { supabaseOn, getSupabase } from "@/lib/supabase";
 import { BAIRROS_CRATO } from "@/lib/bairros-crato";
+import { ativarNotificacoes, desativarNotificacoes } from "@/lib/push";
 import {
   listarPedidos,
   registrarVendaBalcao,
@@ -199,6 +200,11 @@ function Painel() {
 
   useEffect(() => {
     setNotifOn(localStorage.getItem("duo-notif") === "1");
+    // registra o service worker cedo (independente de notificação), pra o
+    // painel já ficar instalável como app assim que abrir
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
@@ -228,6 +234,9 @@ function Painel() {
     if (notifOn) {
       localStorage.setItem("duo-notif", "0");
       setNotifOn(false);
+      try {
+        await desativarNotificacoes();
+      } catch {}
       return;
     }
     if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
@@ -238,6 +247,22 @@ function Painel() {
     localStorage.setItem("duo-notif", "1");
     setNotifOn(true);
     tocarSino(); // demonstração + desbloqueia o áudio no navegador
+
+    // além do som (só funciona com a aba aberta), tenta ativar push de
+    // verdade — chega no celular mesmo com o painel fechado, se instalado
+    // como app (Adicionar à tela de início)
+    try {
+      const resultado = await ativarNotificacoes();
+      if (resultado.ok) {
+        avisar("Notificações ativadas ✓ (mesmo com o painel fechado)");
+      } else if (resultado.motivo === "sem-suporte") {
+        avisar("Som ativado. P/ notificar com o app fechado, instale o painel na tela de início.");
+      } else if (resultado.motivo !== "permissao-negada") {
+        avisar("Som ativado — notificação remota falhou, tente de novo.");
+      }
+    } catch {
+      avisar("Som ativado — notificação remota falhou, tente de novo.");
+    }
   };
 
   const avisar = (msg: string) => {
@@ -295,7 +320,7 @@ function Painel() {
           <button
             className="btn-som"
             onClick={alternarNotif}
-            title={notifOn ? "Som: ligado" : "Som: desligado"}
+            title={notifOn ? "Notificações: ligadas" : "Notificações: desligadas"}
           >
             {notifOn ? "\u{1F50A}" : "\u{1F507}"}
           </button>
@@ -527,6 +552,50 @@ const NOME_CANAL: Record<string, string> = {
 
 const CORES_GRAFICO = ["#61174c", "#f2c230", "#a8c36b", "#c7a3dc", "#5a3a22"];
 
+/* Faixa explicando como instalar o painel como app no celular — some
+   sozinha depois que o dono dispensa (localStorage) ou se já estiver
+   rodando instalado (modo standalone). */
+function DicaInstalarApp() {
+  const [visivel, setVisivel] = useState(false);
+  const [ios, setIos] = useState(false);
+
+  useEffect(() => {
+    const jaInstalado =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    const dispensada = localStorage.getItem("duo-pwa-hint") === "0";
+    setIos(/iphone|ipad|ipod/i.test(navigator.userAgent));
+    setVisivel(!jaInstalado && !dispensada);
+  }, []);
+
+  if (!visivel) return null;
+
+  return (
+    <div className="dica-instalar">
+      <span className="dica-instalar-icone">📲</span>
+      <div className="dica-instalar-texto">
+        <strong>Instale o painel como app no celular</strong>
+        <p>
+          {ios
+            ? 'No Safari: toque em Compartilhar (□↑) e depois em "Adicionar à Tela de Início".'
+            : 'No Chrome: toque no menu (⋮) e depois em "Instalar app" ou "Adicionar à tela inicial".'}
+          {" "}Assim as notificações de pedido chegam mesmo com o app fechado.
+        </p>
+      </div>
+      <button
+        className="dica-instalar-fechar"
+        onClick={() => {
+          localStorage.setItem("duo-pwa-hint", "0");
+          setVisivel(false);
+        }}
+        aria-label="Dispensar"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
   const r = useMemo(() => resumo(pedidos), [pedidos]);
   const maxQtd = r.ranking.length ? r.ranking[0].qtd : 1;
@@ -539,6 +608,7 @@ function Dashboard({ pedidos }: { pedidos: Pedido[] }) {
 
   return (
     <>
+      <DicaInstalarApp />
       {/* faturamento acumulado em destaque, e os recortes menores em 2x2 */}
       <div className="kpi-hero">
         <div className="rotulo">Faturamento acumulado</div>
