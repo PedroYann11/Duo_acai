@@ -740,14 +740,14 @@ function GraficoLinha({ serie }: { serie: { dia: string; valor: number }[] }) {
         />
         {pontos.map((p, i) => (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r="4.5" fill="var(--roxo)" />
+            <circle cx={p.x} cy={p.y} r="3.5" fill="var(--roxo)" />
             {p.valor > 0 && (
               /* alterna a altura do rótulo pra dois dias seguidos não se sobreporem */
               <text
                 x={p.x}
-                y={p.y - (i % 2 === 0 ? 12 : 25)}
+                y={p.y - (i % 2 === 0 ? 10 : 21)}
                 textAnchor={i === 0 ? "start" : i === pontos.length - 1 ? "end" : "middle"}
-                fontSize="12"
+                fontSize="9.5"
                 fill="var(--roxo)"
                 fontWeight="700"
               >
@@ -756,9 +756,9 @@ function GraficoLinha({ serie }: { serie: { dia: string; valor: number }[] }) {
             )}
             <text
               x={p.x}
-              y={base + 22}
+              y={base + 20}
               textAnchor="middle"
-              fontSize="14"
+              fontSize="11"
               fontWeight="600"
               fill="var(--texto-suave)"
             >

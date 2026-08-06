@@ -547,6 +547,30 @@ a {
   border-color: var(--roxo);
 }
 
+.campo input:disabled {
+  background: var(--creme);
+  color: var(--texto-suave);
+  cursor: not-allowed;
+}
+
+.opcao-sem-numero {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.opcao-sem-numero input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--roxo);
+  cursor: pointer;
+}
+
 .duas-colunas {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1848,7 +1872,10 @@ a {
 
 .grafico-linha {
   width: 100%;
+  max-width: 440px;
   height: auto;
+  display: block;
+  margin: 0 auto;
 }
 
 .donut-wrap {

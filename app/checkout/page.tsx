@@ -109,6 +109,7 @@ export default function Checkout() {
   const [telefone, setTelefone] = useState("");
   const [rua, setRua] = useState("");
   const [numero, setNumero] = useState("");
+  const [semNumero, setSemNumero] = useState(false);
   const [bairro, setBairro] = useState("");
   const [referencia, setReferencia] = useState("");
   const [pagamento, setPagamento] = useState<Pagamento>("Pix");
@@ -162,6 +163,7 @@ export default function Checkout() {
         : porKm && kmInfo
           ? kmInfo.taxa
           : config.delivery.fee;
+  const numeroFinal = semNumero ? "S/N" : numero.trim();
   const total = subtotal - descontoTotal + taxaEntrega;
   const minimo = config.delivery.min_order || 0;
   const abaixoDoMinimo = minimo > 0 && subtotal < minimo;
@@ -173,7 +175,7 @@ export default function Checkout() {
     telefone.trim().replace(/\D/g, "").length >= 10 &&
     (tipoEntrega === "retirada" ||
       (rua.trim() &&
-        numero.trim() &&
+        (semNumero || numero.trim()) &&
         bairro.trim() &&
         (!porBairro || Boolean(bairroSelecionado))));
 
@@ -207,7 +209,7 @@ export default function Checkout() {
         customer_name: nome.trim(),
         customer_phone: telefone.trim() || null,
         street: tipoEntrega === "retirada" ? null : rua.trim(),
-        number: tipoEntrega === "retirada" ? null : numero.trim(),
+        number: tipoEntrega === "retirada" ? null : numeroFinal,
         neighborhood: tipoEntrega === "retirada" ? null : bairro.trim(),
         reference:
           tipoEntrega === "retirada" ? null : referencia.trim() || null,
@@ -257,7 +259,7 @@ export default function Checkout() {
       telefone.trim() ? `*Telefone:* ${telefone.trim()}` : "",
       tipoEntrega === "retirada"
         ? `*Retirada na loja*`
-        : `*Endereço:* ${rua.trim()}, ${numero.trim()} — ${bairro.trim()}`,
+        : `*Endereço:* ${rua.trim()}, ${numeroFinal} — ${bairro.trim()}`,
       tipoEntrega === "entrega" && referencia.trim()
         ? `*Referência:* ${referencia.trim()}`
         : "",
@@ -530,7 +532,19 @@ export default function Checkout() {
                     value={numero}
                     onChange={(e) => setNumero(e.target.value)}
                     placeholder="123"
+                    disabled={semNumero}
                   />
+                  <label className="opcao-sem-numero">
+                    <input
+                      type="checkbox"
+                      checked={semNumero}
+                      onChange={(e) => {
+                        setSemNumero(e.target.checked);
+                        if (e.target.checked) setNumero("");
+                      }}
+                    />
+                    Sem número / Casa sem número
+                  </label>
                 </div>
               </div>
               <div className="campo">
