@@ -18,6 +18,18 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return bytes;
 }
 
+/** compara a chave da assinatura já existente com a chave atual do app */
+function mesmaChave(
+  atual: ArrayBuffer | null | undefined,
+  desejada: Uint8Array
+): boolean {
+  if (!atual) return false;
+  const a = new Uint8Array(atual);
+  if (a.length !== desejada.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== desejada[i]) return false;
+  return true;
+}
+
 export function suportaPush(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -25,6 +37,22 @@ export function suportaPush(): boolean {
     "PushManager" in window &&
     "Notification" in window
   );
+}
+
+/** registra o service worker e devolve um registro com worker ATIVO */
+export async function garantirServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator))
+    return null;
+  try {
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    // `ready` só resolve quando existe um worker ativo controlando a página —
+    // é isso que evita assinar o push antes da hora (a causa do "só funciona
+    // às vezes" / "tive que reinstalar várias vezes")
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
 }
 
 export async function statusNotificacoes(): Promise<
@@ -42,26 +70,54 @@ export async function ativarNotificacoes(): Promise<
 > {
   if (!suportaPush()) return { ok: false, motivo: "sem-suporte" };
 
-  const permissao = await Notification.requestPermission();
+  // 1) permissão primeiro, ainda dentro do gesto do clique (exigência do iOS)
+  let permissao = Notification.permission;
+  if (permissao === "default") {
+    try {
+      permissao = await Notification.requestPermission();
+    } catch {
+      return { ok: false, motivo: "permissao-negada" };
+    }
+  }
   if (permissao !== "granted") return { ok: false, motivo: "permissao-negada" };
 
-  const reg = await navigator.serviceWorker.register("/sw.js");
-  await navigator.serviceWorker.ready;
+  // 2) garante um service worker ATIVO antes de assinar
+  const reg = await garantirServiceWorker();
+  if (!reg) return { ok: false, motivo: "sw-falhou" };
 
-  let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
-    });
+  // 3) reaproveita a assinatura só se a chave bater; senão recria.
+  //    (reinstalar o app pode deixar uma assinatura velha, com chave antiga,
+  //    presa no navegador — assinar por cima dela dá erro)
+  const chave = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  let sub: PushSubscription | null = null;
+  try {
+    sub = await reg.pushManager.getSubscription();
+    if (sub && !mesmaChave(sub.options?.applicationServerKey, chave)) {
+      try {
+        await sub.unsubscribe();
+      } catch {}
+      sub = null;
+    }
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: chave as BufferSource,
+      });
+    }
+  } catch (e: any) {
+    return { ok: false, motivo: `assinatura-falhou: ${e?.message || e}` };
   }
 
+  // 4) salva no banco (upsert por endpoint pra não duplicar)
   const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    return { ok: false, motivo: "assinatura-incompleta" };
+  }
   const { error } = await getSupabase().from("push_subscriptions").upsert(
     {
-      endpoint: json.endpoint!,
-      p256dh: json.keys!.p256dh,
-      auth: json.keys!.auth,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth,
       user_agent: navigator.userAgent,
       active: true,
     },
@@ -73,11 +129,12 @@ export async function ativarNotificacoes(): Promise<
 }
 
 export async function desativarNotificacoes(): Promise<void> {
-  const reg = await navigator.serviceWorker.getRegistration();
-  const sub = await reg?.pushManager.getSubscription();
-  if (!sub) return;
-
-  const endpoint = sub.endpoint;
-  await sub.unsubscribe();
-  await getSupabase().from("push_subscriptions").delete().eq("endpoint", endpoint);
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (!sub) return;
+    const endpoint = sub.endpoint;
+    await sub.unsubscribe();
+    await getSupabase().from("push_subscriptions").delete().eq("endpoint", endpoint);
+  } catch {}
 }

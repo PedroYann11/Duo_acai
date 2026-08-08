@@ -22,7 +22,11 @@ import {
   setLembrarDispositivo,
 } from "@/lib/supabase";
 import { BAIRROS_CRATO } from "@/lib/bairros-crato";
-import { ativarNotificacoes, desativarNotificacoes } from "@/lib/push";
+import {
+  ativarNotificacoes,
+  desativarNotificacoes,
+  garantirServiceWorker,
+} from "@/lib/push";
 import {
   listarPedidos,
   registrarVendaBalcao,
@@ -230,12 +234,21 @@ function Painel() {
   const recarregar = async () => setPedidos(await listarPedidos());
 
   useEffect(() => {
-    setNotifOn(localStorage.getItem("duo-notif") === "1");
-    // registra o service worker cedo (independente de notificação), pra o
-    // painel já ficar instalável como app assim que abrir
-    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    const querNotif = localStorage.getItem("duo-notif") === "1";
+    setNotifOn(querNotif);
+    // registra o service worker (deixa o painel instalável) e, se o dono já
+    // tinha ativado as notificações e a permissão continua concedida, re-garante
+    // a assinatura por baixo dos panos — ela pode ter se perdido ao reinstalar
+    // o app, e é isso que fazia "parar de funcionar até reinstalar de novo".
+    garantirServiceWorker().then(() => {
+      if (
+        querNotif &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        ativarNotificacoes().catch(() => {});
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -247,15 +260,14 @@ function Painel() {
         canalPedido === "site" &&
         localStorage.getItem("duo-notif") === "1"
       ) {
+        // com o painel aberto: toca o sino. A notificação visual (banner)
+        // vem pelo push do service worker, que funciona no celular também —
+        // o `new Notification()` da página quebrava no Chrome mobile.
         tocarSino();
-        if (
-          typeof Notification !== "undefined" &&
-          Notification.permission === "granted"
-        ) {
-          new Notification("Novo pedido na Duo!", {
-            body: "Abra a aba Pedidos pra ver os detalhes.",
-          });
-        }
+        mostrarNotificacaoLocal(
+          "Novo pedido na Duo!",
+          "Abra a aba Pedidos pra ver os detalhes."
+        );
       }
     });
     return cancelar;
@@ -270,29 +282,22 @@ function Painel() {
       } catch {}
       return;
     }
-    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
-      try {
-        await Notification.requestPermission();
-      } catch {}
-    }
+    // liga o som já (funciona com a aba aberta) e desbloqueia o áudio
     localStorage.setItem("duo-notif", "1");
     setNotifOn(true);
-    tocarSino(); // demonstração + desbloqueia o áudio no navegador
+    tocarSino();
 
-    // além do som (só funciona com a aba aberta), tenta ativar push de
-    // verdade — chega no celular mesmo com o painel fechado, se instalado
-    // como app (Adicionar à tela de início)
-    try {
-      const resultado = await ativarNotificacoes();
-      if (resultado.ok) {
-        avisar("Notificações ativadas ✓ (mesmo com o painel fechado)");
-      } else if (resultado.motivo === "sem-suporte") {
-        avisar("Som ativado. P/ notificar com o app fechado, instale o painel na tela de início.");
-      } else if (resultado.motivo !== "permissao-negada") {
-        avisar("Som ativado — notificação remota falhou, tente de novo.");
-      }
-    } catch {
-      avisar("Som ativado — notificação remota falhou, tente de novo.");
+    // ativa o push de verdade — chega no celular mesmo com o painel fechado,
+    // se instalado como app. A permissão é pedida dentro do próprio clique.
+    const r = await ativarNotificacoes();
+    if (r.ok) {
+      avisar("Notificações ativadas ✓ (mesmo com o app fechado)");
+    } else if (r.motivo === "sem-suporte") {
+      avisar("Som ligado. Pra avisar com o app fechado, instale o painel na tela de início.");
+    } else if (r.motivo === "permissao-negada") {
+      avisar("Som ligado. Notificação no celular bloqueada — libere nas configs do navegador.");
+    } else {
+      avisar("Som ligado. A notificação no celular falhou — tente de novo.");
     }
   };
 
@@ -381,7 +386,7 @@ function Painel() {
         <button
           className="btn-som"
           onClick={alternarNotif}
-          title={notifOn ? "Som: ligado" : "Som: desligado"}
+          title={notifOn ? "Notificações: ligadas" : "Notificações: desligadas"}
         >
           {notifOn ? "\u{1F50A}" : "\u{1F507}"}
         </button>
@@ -440,7 +445,40 @@ function tocarSino() {
   } catch {}
 }
 
+/* Notificação visual com o painel aberto. Usa showNotification do service
+   worker (funciona no desktop E no celular); o construtor `new Notification()`
+   quebra no Chrome mobile. Mesma tag do push pra não duplicar o banner. */
+function mostrarNotificacaoLocal(titulo: string, corpo: string) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted")
+    return;
+  navigator.serviceWorker?.ready
+    .then((reg) =>
+      reg.showNotification(titulo, {
+        body: corpo,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: "duo-pedido",
+      })
+    )
+    .catch(() => {});
+}
+
 /* ================= Registrar venda (balcão/WhatsApp/dinheiro) ================= */
+
+/* data de hoje no fuso local, no formato YYYY-MM-DD que o <input type=date> usa */
+function dataLocalHoje(): string {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+/* converte a data escolhida (YYYY-MM-DD) em ISO. Se for hoje, usa o horário
+   real de agora (ordena certo no dashboard); se for outro dia, meio-dia local. */
+function isoDaData(dia: string): string {
+  if (!dia || dia === dataLocalHoje()) return new Date().toISOString();
+  const d = new Date(`${dia}T12:00:00`);
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
 
 function RegistrarVenda({
   onSalvo,
@@ -455,6 +493,7 @@ function RegistrarVenda({
   const [salvando, setSalvando] = useState(false);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [vendedor, setVendedor] = useState<string | null>(null);
+  const [dataVenda, setDataVenda] = useState(dataLocalHoje());
 
   useEffect(() => {
     listarVendedores().then((v) => {
@@ -494,8 +533,10 @@ function RegistrarVenda({
         total,
         seller_name: vendedor,
         itens,
+        created_at: isoDaData(dataVenda),
       });
       setQtds({});
+      setDataVenda(dataLocalHoje());
       onSalvo();
     } catch {
       onErro();
@@ -556,6 +597,23 @@ function RegistrarVenda({
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="bloco">
+        <h2>Quando foi a venda?</h2>
+        <div className="campo">
+          <input
+            type="date"
+            className="input-data"
+            value={dataVenda}
+            max={dataLocalHoje()}
+            onChange={(e) => setDataVenda(e.target.value)}
+          />
+        </div>
+        <p className="aviso" style={{ margin: 0 }}>
+          Já vem com a data de hoje. Mude só se estiver lançando uma venda de
+          outro dia.
+        </p>
       </div>
 
       <button

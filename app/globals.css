@@ -590,6 +590,23 @@ a {
   cursor: pointer;
 }
 
+/* campo de data (cadastro de venda) — herda o visual dos inputs, largura cheia */
+.input-data {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 1.5px solid var(--creme-2);
+  border-radius: 12px;
+  background: var(--branco);
+  color: inherit;
+}
+
+.input-data:focus {
+  border-color: var(--roxo);
+  outline: none;
+}
+
 /* campo de senha com botão de olhinho pra mostrar/esconder */
 .campo-senha {
   position: relative;
@@ -1485,8 +1502,8 @@ a {
 }
 
 .faixa-fechado {
-  background: #8a2f2f;
-  color: #ffe9e0;
+  background: linear-gradient(160deg, var(--roxo) 0%, var(--acai) 100%);
+  color: var(--creme);
   text-align: center;
   font-weight: 600;
   font-size: 0.88rem;

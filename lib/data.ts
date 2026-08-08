@@ -117,6 +117,8 @@ export async function registrarVendaBalcao(dados: {
   total: number;
   seller_name: string | null;
   itens: ItemPedido[];
+  /** data/hora da venda (ISO). Padrão: agora. Permite lançar venda de outro dia. */
+  created_at?: string;
 }): Promise<void> {
   const pedido: Pedido = {
     id: crypto.randomUUID(),
@@ -135,13 +137,14 @@ export async function registrarVendaBalcao(dados: {
     total: dados.total,
     status: "entregue",
     seller_name: dados.seller_name,
-    created_at: new Date().toISOString(),
+    created_at: dados.created_at ?? new Date().toISOString(),
     itens: dados.itens,
   };
 
   if (supabaseOn) {
     const sb = getSupabase();
-    const { itens, id, created_at, ...resto } = pedido;
+    // mantém created_at no insert pra respeitar a data escolhida pelo dono
+    const { itens, id, ...resto } = pedido;
     const { data, error } = await sb
       .from("orders")
       .insert(resto)
